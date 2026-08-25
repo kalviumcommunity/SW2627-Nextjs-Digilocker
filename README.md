@@ -20,7 +20,7 @@ Build a document vault that supports direct cloud uploads, expiring shareable li
 
 - Gchat
 - GitHub
-- Discord
+
 
 ### Rules
 
