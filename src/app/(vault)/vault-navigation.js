@@ -15,7 +15,7 @@ export default function VaultNavigation() {
     <nav aria-label="Vault navigation">
       <ul className="flex items-center gap-1">
         {navigationItems.map(({ href, label }) => {
-          const isActive = pathname === href || pathname.startsWith(`${href}/`);
+          const isActive = pathname === href;
 
           return (
             <li key={href}>
