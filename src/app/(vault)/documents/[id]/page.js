@@ -29,7 +29,7 @@ export default async function DocumentPage({ params }) {
         <div className="rounded-lg border border-black/10 p-8 text-center dark:border-white/15">
           <h1 className="text-2xl font-semibold mb-2">Document Not Found</h1>
           <p className="text-foreground/75">
-            The document you're looking for doesn't exist or has been removed.
+            The document you&apos;re looking for doesn&apos;t exist or has been removed.
           </p>
           <Link
             href="/documents"
