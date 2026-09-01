@@ -1,5 +1,22 @@
 import Link from "next/link";
-import { getDocumentById } from "@/src/lib/documents";
+import { getDocumentById, getDocuments } from "@/src/lib/documents";
+
+/**
+ * generateStaticParams - Pre-generate static pages for all known documents
+ * 
+ * This function tells Next.js which document IDs should be pre-rendered as static pages
+ * at build time. This improves performance by serving pre-built HTML instead of 
+ * rendering on-demand.
+ * 
+ * Returns an array of objects with the route parameters.
+ */
+export async function generateStaticParams() {
+  const documents = await getDocuments();
+  
+  return documents.map((document) => ({
+    id: document.id,
+  }));
+}
 
 /**
  * DocumentPage - Server Component for individual document display
