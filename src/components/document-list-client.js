@@ -14,10 +14,13 @@ import Link from "next/link";
  * - Toggling selected document details
  * - User interactions
  * 
+ * It also receives and displays request-specific values from the server to demonstrate
+ * that dynamic rendering occurred - these values are generated fresh on each request.
+ * 
  * Data comes from the server as serializable props.
  * Client-side React hooks (useState) manage the interactive state.
  */
-export function DocumentListClient({ documents }) {
+export function DocumentListClient({ documents, userId, renderedAt }) {
   const [selectedDocId, setSelectedDocId] = useState(null);
 
   // Find the selected document from the list
@@ -36,7 +39,23 @@ export function DocumentListClient({ documents }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
+    <div className="space-y-6">
+      {/* Server Render Information - Demonstrates Dynamic Rendering */}
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm dark:border-blue-900/30 dark:bg-blue-950/20">
+        <p className="font-medium text-blue-900 dark:text-blue-200">
+          Server Rendered Request Information
+        </p>
+        <div className="mt-2 grid gap-2 text-xs text-blue-800 dark:text-blue-300">
+          <p><span className="font-medium">User ID:</span> <span className="font-mono">{userId}</span></p>
+          <p><span className="font-medium">Rendered at:</span> <span className="font-mono">{renderedAt}</span></p>
+          <p className="mt-1 text-blue-700 dark:text-blue-400">
+            ✓ This timestamp updates on every fresh request, proving the page uses dynamic rendering.
+          </p>
+        </div>
+      </div>
+
+      {/* Document List */}
+      <div className="grid gap-6 lg:grid-cols-3">
       {/* Document List */}
       <div className="lg:col-span-2">
         <div className="mb-4">
@@ -156,6 +175,7 @@ export function DocumentListClient({ documents }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
