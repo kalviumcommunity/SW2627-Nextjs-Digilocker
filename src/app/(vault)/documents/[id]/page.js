@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { getDocumentById, getDocuments } from "@/src/lib/documents";
 
+// Document records change through infrequent vault operations. Refresh this
+// individual document route within five minutes without making the vault
+// layout or other document routes dynamic.
+export const revalidate = 300;
+
 /**
  * generateStaticParams - Pre-generate static pages for all known documents
  * 
@@ -16,6 +21,37 @@ export async function generateStaticParams() {
   return documents.map((document) => ({
     id: document.id,
   }));
+}
+
+/**
+ * generateMetadata - Builds document-specific, non-indexable head metadata.
+ *
+ * The document ID is part of the dynamic route and therefore selects the
+ * corresponding statically generated ISR entry; no metadata is shared between
+ * document routes.
+ */
+export async function generateMetadata({ params }) {
+  const { id } = await params;
+  const document = await getDocumentById(id);
+
+  if (!document) {
+    return {
+      title: "Document Not Found | DigiLocker",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  return {
+    title: `${document.title} | DigiLocker`,
+    description: document.description,
+    robots: {
+      index: false,
+      follow: false,
+    },
+  };
 }
 
 /**
