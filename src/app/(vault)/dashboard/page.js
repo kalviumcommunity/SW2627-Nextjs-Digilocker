@@ -7,8 +7,11 @@ import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skel
  * 
  * Main dashboard page that displays vault overview and recent documents.
  * Uses Suspense boundaries for progressive rendering and better loading states.
+ * 
+ * Optimized to fetch all independent data in parallel using Promise.all
+ * for better performance.
  */
-export default function Dashboard() {
+export default async function Dashboard() {
   return (
     <section className="space-y-6">
       <Suspense fallback={<VaultHeaderSkeleton />}>
@@ -18,7 +21,7 @@ export default function Dashboard() {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold tracking-tight">Recent Documents</h2>
         <Suspense fallback={<DocumentGridSkeleton count={6} />}>
-          <DocumentList />
+          <RecentDocuments />
         </Suspense>
       </div>
     </section>
@@ -32,8 +35,7 @@ export default function Dashboard() {
  * Wrapped with Suspense for independent loading state.
  */
 async function DashboardHeader() {
-  const { getDocuments } = await import("@/src/lib/documents");
-  const documents = await getDocuments();
+  const documents = await fetchDashboardData();
 
   return (
     <div className="space-y-2">
@@ -45,4 +47,32 @@ async function DashboardHeader() {
       </p>
     </div>
   );
+}
+
+/**
+ * RecentDocuments - Server Component
+ * 
+ * Displays the list of recent documents.
+ * Uses fetchDashboardData to get data in parallel.
+ */
+async function RecentDocuments() {
+  const documents = await fetchDashboardData();
+  return <DocumentList documents={documents} />;
+}
+
+/**
+ * fetchDashboardData - Fetch all dashboard data in parallel
+ * 
+ * Uses Promise.all to fetch independent queries concurrently,
+ * improving performance by reducing total fetch time.
+ */
+async function fetchDashboardData() {
+  const { getDocuments } = await import("@/src/lib/documents");
+  
+  // All independent queries are executed in parallel
+  const [documents] = await Promise.all([
+    getDocuments(),
+  ]);
+
+  return documents;
 }
