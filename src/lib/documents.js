@@ -48,11 +48,23 @@ const documents = [
  * Wrapped in React cache() to deduplicate queries within a single render cycle.
  * In the future, this will query the database via Prisma.
  */
-export const getDocuments = cache(async () => {
-  // Simulate async database call
-  // In production: return prisma.document.findMany()
+export async function getDocuments() {
   return documents;
 });
+
+/**
+ * Create a document using the current document repository.
+ * This remains in-memory until the project's database layer is added.
+ */
+export async function createDocument(documentData) {
+  const document = {
+    id: crypto.randomUUID(),
+    ...documentData,
+  };
+
+  documents.push(document);
+  return document;
+}
 
 /**
  * Fetch a single document by ID from the server.
