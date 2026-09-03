@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { getDocuments, getVaultStats } from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 
@@ -6,10 +7,7 @@ import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skel
  * Dashboard - Server Component
  * 
  * Main dashboard page that displays vault overview and recent documents.
- * Uses Suspense boundaries for progressive rendering and better loading states.
- * 
- * Optimized to fetch all independent data in parallel using Promise.all
- * for better performance.
+ * Uses Suspense boundaries for progressive rendering and independent streaming.
  */
 export default async function Dashboard() {
   return (
@@ -32,10 +30,15 @@ export default async function Dashboard() {
  * DashboardHeader - Server Component
  * 
  * Displays the dashboard header with welcome message and stats.
- * Wrapped with Suspense for independent loading state.
+ * Uses Promise.all to fetch independent metrics (documents and vault stats)
+ * concurrently in parallel without creating an accidental waterfall.
  */
 async function DashboardHeader() {
-  const documents = await fetchDashboardData();
+  // Independent queries are initiated and executed concurrently in parallel
+  const [documents, stats] = await Promise.all([
+    getDocuments(),
+    getVaultStats(),
+  ]);
 
   return (
     <div className="space-y-2">
@@ -43,7 +46,7 @@ async function DashboardHeader() {
         Welcome to Your Vault
       </h1>
       <p className="text-foreground/75">
-        You have {documents.length} document{documents.length !== 1 ? "s" : ""} securely stored.
+        You have {documents.length} document{documents.length !== 1 ? "s" : ""} across {stats.totalCategories} categories securely stored.
       </p>
     </div>
   );
@@ -53,26 +56,10 @@ async function DashboardHeader() {
  * RecentDocuments - Server Component
  * 
  * Displays the list of recent documents.
- * Uses fetchDashboardData to get data in parallel.
+ * Deduplicated via React cache() so no duplicate DB queries occur in the same render pass.
  */
 async function RecentDocuments() {
-  const documents = await fetchDashboardData();
+  const documents = await getDocuments();
   return <DocumentList documents={documents} />;
 }
 
-/**
- * fetchDashboardData - Fetch all dashboard data in parallel
- * 
- * Uses Promise.all to fetch independent queries concurrently,
- * improving performance by reducing total fetch time.
- */
-async function fetchDashboardData() {
-  const { getDocuments } = await import("@/src/lib/documents");
-  
-  // All independent queries are executed in parallel
-  const [documents] = await Promise.all([
-    getDocuments(),
-  ]);
-
-  return documents;
-}

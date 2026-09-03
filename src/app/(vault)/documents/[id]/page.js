@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { getDocumentById, getDocuments } from "@/src/lib/documents";
+import {
+  getDocumentById,
+  getDocuments,
+  getDocumentActivity,
+  getDocumentShareLinks,
+} from "@/src/lib/documents";
 
 // Document records change through infrequent vault operations. Refresh this
 // individual document route within five minutes without making the vault
@@ -57,22 +62,22 @@ export async function generateMetadata({ params }) {
 /**
  * DocumentPage - Server Component for individual document display
  * 
- * This dynamic route fetches document data server-side based on the route parameter.
- * No "use client" directive - this is a Server Component.
- * 
- * For Next.js 16+, params is accessed via await params.
- * 
- * Optimized to fetch all independent data in parallel using Promise.all
- * for better performance.
+ * Data Fetching Strategy (LU-2.25):
+ * 1. Sequential: Primary document lookup requires the resolved route param `id`.
+ * 2. Prerequisite boundary: If the document is missing, return not-found UI immediately
+ *    without executing dependent queries with invalid/undefined IDs.
+ * 3. Parallel Dependent: Once `document.id` is verified, dependent queries
+ *    (audit activity logs, share links) are fetched concurrently using `Promise.all`
+ *    to eliminate accidental waterfalls.
  */
 export default async function DocumentPage({ params }) {
   // Extract and await params for Next.js 16+ compatibility
   const { id } = await params;
 
-  // Fetch the specific document and related data in parallel
-  const document = await fetchDocumentData(id);
+  // 1. Primary sequential fetch: verify document existence
+  const document = await getDocumentById(id);
 
-  // Handle missing document gracefully
+  // 2. Handle missing document gracefully before attempting dependent queries
   if (!document) {
     return (
       <div className="space-y-6">
@@ -97,6 +102,12 @@ export default async function DocumentPage({ params }) {
       </div>
     );
   }
+
+  // 3. Dependent queries: execute concurrently in parallel once parent document is verified
+  const [activity, shareLinks] = await Promise.all([
+    getDocumentActivity(document.id),
+    getDocumentShareLinks(document.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -140,12 +151,27 @@ export default async function DocumentPage({ params }) {
           </div>
         </div>
 
+        {/* Audit Activity & Sharing Information */}
+        {activity.length > 0 && (
+          <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+            <h3 className="text-sm font-semibold mb-3">Activity & Verification</h3>
+            <ul className="space-y-2 text-sm text-foreground/80">
+              {activity.map((item) => (
+                <li key={item.id} className="flex justify-between items-center text-xs">
+                  <span>{item.action}</span>
+                  <span className="text-foreground/50">{item.timestamp}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button className="rounded-md bg-foreground text-background px-4 py-2 font-medium hover:opacity-90 transition-opacity">
             Download
           </button>
           <button className="rounded-md border border-black/10 px-4 py-2 font-medium hover:bg-black/5 transition-colors dark:border-white/15 dark:hover:bg-white/10">
-            Share
+            Share {shareLinks.length > 0 ? `(${shareLinks.length})` : ""}
           </button>
         </div>
       </div>
@@ -153,17 +179,3 @@ export default async function DocumentPage({ params }) {
   );
 }
 
-/**
- * fetchDocumentData - Fetch document data in parallel
- * 
- * Uses Promise.all to fetch independent queries concurrently.
- * Ready for future extensions with additional document-related queries.
- */
-async function fetchDocumentData(id) {
-  // All independent queries are executed in parallel
-  const [document] = await Promise.all([
-    getDocumentById(id),
-  ]);
-
-  return document;
-}
