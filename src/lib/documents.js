@@ -47,9 +47,21 @@ const documents = [
  * In the future, this will query the database via Prisma.
  */
 export async function getDocuments() {
-  // Simulate async database call
-  // In production: return prisma.document.findMany()
   return documents;
+}
+
+/**
+ * Create a document using the current document repository.
+ * This remains in-memory until the project's database layer is added.
+ */
+export async function createDocument(documentData) {
+  const document = {
+    id: crypto.randomUUID(),
+    ...documentData,
+  };
+
+  documents.push(document);
+  return document;
 }
 
 /**
