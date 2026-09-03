@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { getDocuments } from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 
@@ -12,9 +13,6 @@ import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skel
  * DYNAMIC RENDERING: This page is configured to render fresh content on every request
  * rather than being statically generated. This demonstrates request-specific server
  * rendering in the Next.js App Router.
- * 
- * The document list is wrapped with Suspense to show a loading skeleton
- * while data is being fetched from the server.
  * 
  * Optimized to fetch all independent data in parallel using Promise.all
  * for better performance.
@@ -74,27 +72,22 @@ function VaultDocuments({ documents, userId, renderedAt }) {
 /**
  * fetchVaultData - Fetch all vault data including server-specific request values
  * 
- * Uses Promise.all to fetch independent queries concurrently.
- * Also captures request-specific values that prove dynamic rendering:
- * - userId: Read from cookies to demonstrate request-specific data access
- * - renderedAt: ISO timestamp showing this render was generated for the current request
+ * Uses Promise.all to fetch independent operations concurrently:
+ * - cookies(): Read incoming request headers/cookies
+ * - getDocuments(): Retrieve vault documents
  * 
- * This proves the page is NOT statically generated - it renders fresh for every request.
+ * Concurrently captures request-specific values that prove dynamic rendering.
  */
 async function fetchVaultData() {
-  const { getDocuments } = await import("@/src/lib/documents");
-  
-  // Get server-side request-specific data
-  const cookieStore = await cookies();
-  const userId = cookieStore.get("demo-user")?.value || "demo-user";
-  
-  // Capture render timestamp - this will be NEW on every request
-  const renderedAt = new Date().toISOString();
-  
-  // All independent queries are executed in parallel
-  const [documents] = await Promise.all([
+  // Start independent queries and request data concurrently in parallel
+  const [cookieStore, documents] = await Promise.all([
+    cookies(),
     getDocuments(),
   ]);
+  
+  const userId = cookieStore.get("demo-user")?.value || "demo-user";
+  const renderedAt = new Date().toISOString();
 
   return { documents, userId, renderedAt };
 }
+

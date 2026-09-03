@@ -66,3 +66,69 @@ export const getDocumentById = cache(async (id) => {
   return documents.find((document) => document.id === id) ?? null;
 });
 
+const documentActivities = {
+  "identity-proof": [
+    { id: "act-1", action: "Uploaded to vault", timestamp: "January 15, 2026, 10:30 AM" },
+    { id: "act-2", action: "Integrity verified (SHA-256)", timestamp: "January 15, 2026, 10:31 AM" },
+  ],
+  "aadhaar-card": [
+    { id: "act-3", action: "Uploaded to vault", timestamp: "December 10, 2025, 02:15 PM" },
+    { id: "act-4", action: "Shared via expiring link", timestamp: "December 12, 2025, 09:00 AM" },
+  ],
+  "degree-certificate": [
+    { id: "act-5", action: "Uploaded to vault", timestamp: "May 20, 2024, 11:45 AM" },
+  ],
+  "pan-card": [
+    { id: "act-6", action: "Uploaded to vault", timestamp: "March 5, 2023, 04:20 PM" },
+  ],
+  "insurance-policy": [
+    { id: "act-7", action: "Uploaded to vault", timestamp: "January 1, 2026, 08:00 AM" },
+  ],
+};
+
+const documentShareLinks = {
+  "identity-proof": [],
+  "aadhaar-card": [
+    { id: "link-1", token: "adh-share-99", expiresAt: "December 13, 2025, 09:00 AM", active: false },
+  ],
+  "degree-certificate": [],
+  "pan-card": [],
+  "insurance-policy": [],
+};
+
+/**
+ * Fetch audit activity logs for a document.
+ * This is a dependent query requiring a verified document ID.
+ * In production: return prisma.documentActivity.findMany({ where: { documentId } })
+ */
+export const getDocumentActivity = cache(async (documentId) => {
+  if (!documentId) return [];
+  return documentActivities[documentId] ?? [];
+});
+
+/**
+ * Fetch active share links for a document.
+ * This is a dependent query requiring a verified document ID.
+ * In production: return prisma.shareLink.findMany({ where: { documentId } })
+ */
+export const getDocumentShareLinks = cache(async (documentId) => {
+  if (!documentId) return [];
+  return documentShareLinks[documentId] ?? [];
+});
+
+/**
+ * Fetch aggregated vault statistics.
+ * Independent query that can run concurrently with document fetches.
+ * In production: aggregated DB queries
+ */
+export const getVaultStats = cache(async () => {
+  const totalDocs = documents.length;
+  const categories = new Set(documents.map((d) => d.type)).size;
+  return {
+    totalDocuments: totalDocs,
+    totalCategories: categories,
+    storageQuotaMB: 100,
+  };
+});
+
+
