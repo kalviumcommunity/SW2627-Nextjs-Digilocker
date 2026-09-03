@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 const documents = [
   {
     id: "identity-proof",
@@ -43,12 +45,12 @@ const documents = [
 
 /**
  * Fetch all documents from the server.
- * This function is designed to be called from Server Components.
+ * Wrapped in React cache() to deduplicate queries within a single render cycle.
  * In the future, this will query the database via Prisma.
  */
 export async function getDocuments() {
   return documents;
-}
+});
 
 /**
  * Create a document using the current document repository.
@@ -66,11 +68,13 @@ export async function createDocument(documentData) {
 
 /**
  * Fetch a single document by ID from the server.
- * This function is designed to be called from Server Components.
+ * Wrapped in React cache() so generateMetadata and DocumentPage share a single
+ * data fetch per request during rendering/regeneration without duplicate queries.
  * In the future, this will query the database via Prisma.
  */
-export async function getDocumentById(id) {
+export const getDocumentById = cache(async (id) => {
   // Simulate async database call
   // In production: return prisma.document.findUnique({ where: { id } })
   return documents.find((document) => document.id === id) ?? null;
-}
+});
+
