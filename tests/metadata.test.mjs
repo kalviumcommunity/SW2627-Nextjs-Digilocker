@@ -1,8 +1,101 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getDocumentById, getDocuments } from "../src/lib/documents.js";
+import {
+  completeUploadSchema,
+  createShareLinkSchema,
+  documentQuerySchema,
+  errorResponse,
+  parseRequestBody,
+  presignUploadSchema,
+  successResponse,
+} from "../src/lib/api-validation.js";
 import fs from "node:fs";
 import path from "node:path";
+
+test("API payload validation (LU-2.27)", async (t) => {
+  await t.test("accepts valid upload and pagination payloads", () => {
+    assert.equal(
+      presignUploadSchema.safeParse({
+        fileName: "aadhaar.pdf",
+        contentType: "application/pdf",
+        fileSize: 10 * 1024 * 1024,
+      }).success,
+      true
+    );
+    assert.deepEqual(documentQuerySchema.parse({ limit: "25" }), { limit: 25 });
+  });
+
+  await t.test("rejects unsafe upload payloads and unknown fields", () => {
+    assert.equal(
+      presignUploadSchema.safeParse({
+        fileName: "aadhaar.pdf",
+        contentType: "application/pdf",
+        fileSize: 10 * 1024 * 1024 + 1,
+      }).success,
+      false
+    );
+    assert.equal(
+      completeUploadSchema.safeParse({
+        objectKey: "uploads/aadhaar.pdf",
+        fileName: "aadhaar.pdf",
+        contentType: "application/pdf",
+        fileSize: 100,
+        unexpected: true,
+      }).success,
+      false
+    );
+  });
+
+  await t.test("enforces documented share link options", () => {
+    assert.equal(
+      createShareLinkSchema.safeParse({
+        expiresInMinutes: 60,
+        pin: "1234",
+        maxViews: 3,
+      }).success,
+      true
+    );
+    assert.equal(
+      createShareLinkSchema.safeParse({ expiresInMinutes: 15, pin: "12" }).success,
+      false
+    );
+  });
+
+  await t.test("returns a 400 response for malformed JSON", async () => {
+    const result = await parseRequestBody(
+      { json: async () => { throw new SyntaxError("bad JSON"); } },
+      presignUploadSchema
+    );
+
+    assert.equal(result.success, false);
+    assert.equal(result.response.status, 400);
+    assert.deepEqual(await result.response.json(), {
+      success: false,
+      error: "Invalid JSON payload",
+      details: [],
+    });
+  });
+
+  await t.test("uses a consistent response envelope and HTTP status", async () => {
+    const success = successResponse({ documents: [] });
+    assert.equal(success.status, 200);
+    assert.deepEqual(await success.json(), {
+      success: true,
+      documents: [],
+    });
+
+    const error = errorResponse("Invalid request payload", 400, [
+      { path: "title", message: "Required" },
+    ]);
+    assert.equal(error.status, 400);
+    assert.deepEqual(await error.json(), {
+      success: false,
+      error: "Invalid request payload",
+      details: [{ path: "title", message: "Required" }],
+    });
+  });
+});
 
 test("Document Metadata & Revalidation Strategy (LU-2.23)", async (t) => {
   const pageContent = fs.readFileSync(

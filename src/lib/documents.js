@@ -48,11 +48,9 @@ const documents = [
  * Wrapped in React cache() to deduplicate queries within a single render cycle.
  * In the future, this will query the database via Prisma.
  */
-export const getDocuments = cache(async () => {
-  // Simulate async database call
-  // In production: return prisma.document.findMany()
+export async function getDocuments() {
   return documents;
-});
+}
 
 /**
  * Fetch a single document by ID from the server.
@@ -156,24 +154,29 @@ export async function addDocumentActivity(documentId, action) {
 
 /**
  * Create a new document in the vault.
+ * Supports both API route payloads and Server Action submissions.
  * In production: return prisma.document.create({ data: ... })
  */
-export async function createDocument({ title, description, type, size }) {
-  const id = title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "") || `doc-${Date.now()}`;
+export async function createDocument(documentData) {
+  const title = documentData?.title || "Untitled Document";
+  let uniqueId = documentData?.id;
 
-  // Ensure unique ID
-  let uniqueId = id;
-  let counter = 1;
-  while (documents.some((d) => d.id === uniqueId)) {
-    uniqueId = `${id}-${counter}`;
-    counter++;
+  if (!uniqueId) {
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || `doc-${Date.now()}`;
+
+    uniqueId = slug;
+    let counter = 1;
+    while (documents.some((d) => d.id === uniqueId)) {
+      uniqueId = `${slug}-${counter}`;
+      counter++;
+    }
   }
 
-  const issuedOn = new Date().toLocaleDateString("en-US", {
+  const issuedOn = documentData?.issuedOn || new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -182,10 +185,15 @@ export async function createDocument({ title, description, type, size }) {
   const newDoc = {
     id: uniqueId,
     title: title.trim(),
-    description: description ? description.trim() : "Uploaded vault document.",
+    description: documentData?.description ? documentData.description.trim() : "Uploaded vault document.",
     issuedOn,
-    type: (type || "PDF").toUpperCase(),
-    size: size || "1.2 MB",
+    type: (documentData?.type || "PDF").toUpperCase(),
+    size: documentData?.size || "1.2 MB",
+    ...documentData,
+    // Preserve calculated fields
+    id: uniqueId,
+    title: title.trim(),
+    issuedOn,
   };
 
   documents.unshift(newDoc);
@@ -293,6 +301,3 @@ export async function deleteShareLink(documentId, linkId) {
 
   return true;
 }
-
-
-

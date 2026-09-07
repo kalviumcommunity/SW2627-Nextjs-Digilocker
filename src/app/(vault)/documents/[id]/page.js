@@ -315,4 +315,3 @@ export default async function DocumentPage({ params }) {
     </div>
   );
 }
-
