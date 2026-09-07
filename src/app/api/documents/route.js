@@ -1,15 +1,13 @@
 import { createDocument, getDocuments } from "@/src/lib/documents";
+import { errorResponse, successResponse } from "@/src/lib/api-validation";
 
 export async function GET() {
   try {
     const documents = await getDocuments();
 
-    return Response.json({ success: true, documents });
+    return successResponse({ documents });
   } catch {
-    return Response.json(
-      { success: false, error: "Failed to fetch documents" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to fetch documents", 500);
   }
 }
 
@@ -19,24 +17,15 @@ export async function POST(request) {
   try {
     body = await request.json();
   } catch {
-    return Response.json(
-      { success: false, error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return errorResponse("Invalid JSON body", 400);
   }
 
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return Response.json(
-      { success: false, error: "Request body is required" },
-      { status: 400 }
-    );
+    return errorResponse("Request body is required", 400);
   }
 
   if (typeof body.title !== "string" || body.title.trim() === "") {
-    return Response.json(
-      { success: false, error: "The title field is required" },
-      { status: 400 }
-    );
+    return errorResponse("The title field is required", 400);
   }
 
   try {
@@ -48,11 +37,8 @@ export async function POST(request) {
       size: typeof body.size === "string" ? body.size : "",
     });
 
-    return Response.json({ success: true, document }, { status: 201 });
+    return successResponse({ document }, 201);
   } catch {
-    return Response.json(
-      { success: false, error: "Failed to create document" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to create document", 500);
   }
 }
