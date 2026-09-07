@@ -50,7 +50,7 @@ const documents = [
  */
 export async function getDocuments() {
   return documents;
-});
+}
 
 /**
  * Create a document using the current document repository.

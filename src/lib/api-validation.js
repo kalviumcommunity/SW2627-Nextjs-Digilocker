@@ -29,6 +29,8 @@ export const documentQuerySchema = z
   })
   .strict();
 
+export const documentIdSchema = documentId;
+
 export const presignUploadSchema = z
   .object({
     fileName,
