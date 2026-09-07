@@ -5,8 +5,10 @@ import {
   completeUploadSchema,
   createShareLinkSchema,
   documentQuerySchema,
+  errorResponse,
   parseRequestBody,
   presignUploadSchema,
+  successResponse,
 } from "../src/lib/api-validation.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -69,8 +71,28 @@ test("API payload validation (LU-2.27)", async (t) => {
     assert.equal(result.success, false);
     assert.equal(result.response.status, 400);
     assert.deepEqual(await result.response.json(), {
+      success: false,
       error: "Invalid JSON payload",
       details: [],
+    });
+  });
+
+  await t.test("uses a consistent response envelope and HTTP status", async () => {
+    const success = successResponse({ documents: [] });
+    assert.equal(success.status, 200);
+    assert.deepEqual(await success.json(), {
+      success: true,
+      documents: [],
+    });
+
+    const error = errorResponse("Invalid request payload", 400, [
+      { path: "title", message: "Required" },
+    ]);
+    assert.equal(error.status, 400);
+    assert.deepEqual(await error.json(), {
+      success: false,
+      error: "Invalid request payload",
+      details: [{ path: "title", message: "Required" }],
     });
   });
 });

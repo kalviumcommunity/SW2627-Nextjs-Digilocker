@@ -68,6 +68,17 @@ export function formatValidationErrors(error) {
   }));
 }
 
+export function successResponse(data, status = 200) {
+  return Response.json({ success: true, ...data }, { status });
+}
+
+export function errorResponse(error, status, details = []) {
+  return Response.json(
+    { success: false, error, details },
+    { status }
+  );
+}
+
 export async function parseRequestBody(request, schema) {
   let body;
 
@@ -76,10 +87,7 @@ export async function parseRequestBody(request, schema) {
   } catch {
     return {
       success: false,
-      response: Response.json(
-        { error: "Invalid JSON payload", details: [] },
-        { status: 400 }
-      ),
+      response: errorResponse("Invalid JSON payload", 400),
     };
   }
 
@@ -87,9 +95,10 @@ export async function parseRequestBody(request, schema) {
   if (!result.success) {
     return {
       success: false,
-      response: Response.json(
-        { error: "Invalid request payload", details: formatValidationErrors(result.error) },
-        { status: 400 }
+      response: errorResponse(
+        "Invalid request payload",
+        400,
+        formatValidationErrors(result.error)
       ),
     };
   }
