@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getDocuments } from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
+import { createDocument } from "./actions";
 
 /**
  * DocumentsPage - Server Component
@@ -30,6 +31,84 @@ export default async function DocumentsPage() {
       <Suspense fallback={<VaultHeaderSkeleton />}>
         <VaultHeader documents={documents} userId={userId} renderedAt={renderedAt} />
       </Suspense>
+
+      {/* Upload Document Form with Server Action (Progressive Enhancement) */}
+      <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+        <h2 className="text-lg font-semibold mb-1">Upload Document to Vault</h2>
+        <p className="text-sm text-foreground/75 mb-4">
+          Add a new verified document to your secure vault via direct Server Action mutation.
+        </p>
+        <form action={createDocument} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label htmlFor="title" className="text-xs font-medium text-foreground/75">
+                Document Title *
+              </label>
+              <input
+                id="title"
+                name="title"
+                type="text"
+                required
+                maxLength={120}
+                placeholder="e.g. Passport, Tax Certificate"
+                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="type" className="text-xs font-medium text-foreground/75">
+                Format / Type
+              </label>
+              <select
+                id="type"
+                name="type"
+                defaultValue="PDF"
+                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
+              >
+                <option value="PDF" className="dark:bg-neutral-900">PDF</option>
+                <option value="DOCX" className="dark:bg-neutral-900">DOCX</option>
+                <option value="JPG" className="dark:bg-neutral-900">JPG</option>
+                <option value="PNG" className="dark:bg-neutral-900">PNG</option>
+                <option value="WEBP" className="dark:bg-neutral-900">WEBP</option>
+                <option value="XML" className="dark:bg-neutral-900">XML</option>
+                <option value="JSON" className="dark:bg-neutral-900">JSON</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="size" className="text-xs font-medium text-foreground/75">
+                File Size
+              </label>
+              <input
+                id="size"
+                name="size"
+                type="text"
+                defaultValue="1.5 MB"
+                placeholder="e.g. 2.1 MB"
+                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="description" className="text-xs font-medium text-foreground/75">
+              Description
+            </label>
+            <input
+              id="description"
+              name="description"
+              type="text"
+              placeholder="Brief description of the document"
+              className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Upload to Vault
+            </button>
+          </div>
+        </form>
+      </div>
 
       <Suspense fallback={<DocumentGridSkeleton count={6} />}>
         <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} />

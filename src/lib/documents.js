@@ -131,4 +131,168 @@ export const getVaultStats = cache(async () => {
   };
 });
 
+/**
+ * Add an audit activity log entry for a document.
+ */
+export async function addDocumentActivity(documentId, action) {
+  if (!documentActivities[documentId]) {
+    documentActivities[documentId] = [];
+  }
+  const timestamp = new Date().toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const newActivity = {
+    id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    action,
+    timestamp,
+  };
+  documentActivities[documentId].unshift(newActivity);
+  return newActivity;
+}
+
+/**
+ * Create a new document in the vault.
+ * In production: return prisma.document.create({ data: ... })
+ */
+export async function createDocument({ title, description, type, size }) {
+  const id = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || `doc-${Date.now()}`;
+
+  // Ensure unique ID
+  let uniqueId = id;
+  let counter = 1;
+  while (documents.some((d) => d.id === uniqueId)) {
+    uniqueId = `${id}-${counter}`;
+    counter++;
+  }
+
+  const issuedOn = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const newDoc = {
+    id: uniqueId,
+    title: title.trim(),
+    description: description ? description.trim() : "Uploaded vault document.",
+    issuedOn,
+    type: (type || "PDF").toUpperCase(),
+    size: size || "1.2 MB",
+  };
+
+  documents.unshift(newDoc);
+  documentActivities[newDoc.id] = [];
+  documentShareLinks[newDoc.id] = [];
+
+  await addDocumentActivity(newDoc.id, "Uploaded to vault");
+
+  return newDoc;
+}
+
+/**
+ * Update an existing document's metadata in the vault.
+ * In production: return prisma.document.update({ where: { id }, data: ... })
+ */
+export async function updateDocument(id, updates) {
+  const index = documents.findIndex((d) => d.id === id);
+  if (index === -1) {
+    return null;
+  }
+
+  const existing = documents[index];
+  const updatedDoc = {
+    ...existing,
+    ...(updates.title !== undefined && { title: updates.title.trim() }),
+    ...(updates.description !== undefined && { description: updates.description.trim() }),
+    ...(updates.type !== undefined && { type: updates.type.toUpperCase() }),
+  };
+
+  documents[index] = updatedDoc;
+  await addDocumentActivity(id, "Metadata updated");
+
+  return updatedDoc;
+}
+
+/**
+ * Delete a document from the vault.
+ * In production: return prisma.document.delete({ where: { id } })
+ */
+export async function deleteDocument(id) {
+  const index = documents.findIndex((d) => d.id === id);
+  if (index === -1) {
+    return false;
+  }
+
+  documents.splice(index, 1);
+  delete documentActivities[id];
+  delete documentShareLinks[id];
+
+  return true;
+}
+
+/**
+ * Create an expiring share link for a document.
+ * In production: return prisma.shareLink.create({ data: ... })
+ */
+export async function createShareLink(documentId, { expiresInMinutes = 60 } = {}) {
+  const document = documents.find((d) => d.id === documentId);
+  if (!document) {
+    return null;
+  }
+
+  if (!documentShareLinks[documentId]) {
+    documentShareLinks[documentId] = [];
+  }
+
+  const expiresDate = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+  const expiresAt = expiresDate.toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const token = `share-${Math.random().toString(36).substring(2, 8)}`;
+  const newLink = {
+    id: `link-${Date.now()}`,
+    token,
+    expiresAt,
+    active: true,
+  };
+
+  documentShareLinks[documentId].unshift(newLink);
+  await addDocumentActivity(documentId, `Shared via expiring link (${expiresInMinutes}m)`);
+
+  return newLink;
+}
+
+/**
+ * Delete a share link for a document.
+ */
+export async function deleteShareLink(documentId, linkId) {
+  if (!documentShareLinks[documentId]) {
+    return false;
+  }
+
+  const index = documentShareLinks[documentId].findIndex((l) => l.id === linkId);
+  if (index === -1) {
+    return false;
+  }
+
+  documentShareLinks[documentId].splice(index, 1);
+  await addDocumentActivity(documentId, "Revoked share link");
+
+  return true;
+}
+
+
 
