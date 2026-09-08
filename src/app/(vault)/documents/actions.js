@@ -94,6 +94,7 @@ export async function createDocument(formData) {
   // Invalidate affected caches so fresh data is loaded
   safeRevalidatePath("/documents");
   safeRevalidatePath("/dashboard");
+  safeRevalidatePath(`/documents/${newDocument.id}`);
 
   try {
     redirect(`/documents/${newDocument.id}`);
@@ -182,6 +183,7 @@ export async function deleteDocument(formData) {
   // Invalidate vault listings
   safeRevalidatePath("/documents");
   safeRevalidatePath("/dashboard");
+  safeRevalidatePath(`/documents/${documentId}`);
 
   try {
     redirect("/documents");
