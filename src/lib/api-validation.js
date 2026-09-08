@@ -63,6 +63,104 @@ export const uploadPresignSchema = presignUploadSchema;
 export const uploadCompleteSchema = completeUploadSchema;
 export const shareLinkSchema = createShareLinkSchema;
 
+export const ALLOWED_DOCUMENT_TYPES = [
+  "PDF",
+  "DOCX",
+  "JPG",
+  "JPEG",
+  "PNG",
+  "WEBP",
+  "XML",
+  "JSON",
+];
+
+export const createDocumentSchema = z.object({
+  title: z
+    .string({ required_error: "Document title is required." })
+    .trim()
+    .min(1, "Document title is required.")
+    .max(120, "Document title cannot exceed 120 characters."),
+  type: z
+    .string()
+    .trim()
+    .transform((val) => val.toUpperCase())
+    .refine(
+      (val) => ALLOWED_DOCUMENT_TYPES.includes(val),
+      (val) => ({ message: `Unsupported document format "${val}".` })
+    )
+    .default("PDF"),
+  description: z
+    .string()
+    .trim()
+    .max(500, "Description cannot exceed 500 characters.")
+    .optional()
+    .default(""),
+  size: z
+    .string()
+    .trim()
+    .max(50, "File size string cannot exceed 50 characters.")
+    .optional()
+    .default("1.2 MB"),
+});
+
+export const updateDocumentSchema = z.object({
+  documentId: z.string().trim().min(1, "Missing document ID."),
+  title: z
+    .string({ required_error: "Document title cannot be empty." })
+    .trim()
+    .min(1, "Document title cannot be empty.")
+    .max(120, "Document title cannot exceed 120 characters."),
+  type: z
+    .string()
+    .trim()
+    .transform((val) => val.toUpperCase())
+    .refine(
+      (val) => ALLOWED_DOCUMENT_TYPES.includes(val),
+      (val) => ({ message: `Unsupported document format "${val}".` })
+    )
+    .optional(),
+  description: z
+    .string()
+    .trim()
+    .max(500, "Description cannot exceed 500 characters.")
+    .optional(),
+});
+
+export const deleteDocumentSchema = z.object({
+  documentId: z.string().trim().min(1, "Missing document ID."),
+});
+
+export const createShareLinkActionSchema = z.object({
+  documentId: z.string().trim().min(1, "Missing document ID."),
+  expiresInMinutes: z.coerce
+    .number({ invalid_type_error: "Expiration duration must be a positive number." })
+    .int("Expiration duration must be an integer.")
+    .positive("Expiration duration must be a positive number.")
+    .default(60),
+});
+
+export const revokeShareLinkActionSchema = z.object({
+  documentId: z.string().trim().min(1, "Missing document ID."),
+  linkId: z.string().trim().min(1, "Missing share link ID."),
+});
+
+export function formatActionErrors(error) {
+  if (!error) return null;
+  const flattened = error.flatten?.();
+  if (flattened?.fieldErrors) {
+    return flattened.fieldErrors;
+  }
+  const errors = {};
+  for (const issue of error.issues || []) {
+    const key = issue.path[0] ? String(issue.path[0]) : "_form";
+    if (!errors[key]) {
+      errors[key] = [];
+    }
+    errors[key].push(issue.message);
+  }
+  return errors;
+}
+
 export function formatValidationErrors(error) {
   return error.issues.map(({ path, message }) => ({
     path: path.join("."),
@@ -107,3 +205,4 @@ export async function parseRequestBody(request, schema) {
 
   return { success: true, data: result.data };
 }
+
