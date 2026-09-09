@@ -5,12 +5,9 @@ import {
   getDocumentActivity,
   getDocumentShareLinks,
 } from "@/src/lib/documents";
-import {
-  updateDocument,
-  deleteDocument,
-  createShareLink,
-  revokeShareLink,
-} from "../actions";
+import { DeleteDocumentButton } from "@/src/components/delete-document-button";
+import { EditDocumentForm } from "@/src/components/edit-document-form";
+import { ShareLinkSection } from "@/src/components/share-link-section";
 
 // Document records change through infrequent vault operations. Refresh this
 // individual document route within five minutes without making the vault
@@ -75,8 +72,8 @@ export async function generateMetadata({ params }) {
  * 3. Parallel Dependent: Once `document.id` is verified, dependent queries
  *    (audit activity logs, share links) are fetched concurrently using `Promise.all`
  *    to eliminate accidental waterfalls.
- * 4. Progressive Server Actions: Form-tied mutations (update, delete, share) are
- *    bound directly to Server Actions on the server.
+ * 4. Client Leaf Components (LU-2.18 / LU-2.20 / LU-2.28): Interactive forms
+ *    use useActionState in isolated leaf components, preserving Server Component rendering.
  */
 export default async function DocumentPage({ params }) {
   // Extract and await params for Next.js 16+ compatibility
@@ -127,16 +124,8 @@ export default async function DocumentPage({ params }) {
           ← Back to Documents
         </Link>
 
-        {/* Delete Document Form with Server Action */}
-        <form action={deleteDocument}>
-          <input type="hidden" name="documentId" value={document.id} />
-          <button
-            type="submit"
-            className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50 transition-colors"
-          >
-            Delete Document
-          </button>
-        </form>
+        {/* Delete Document Client Leaf Component with useActionState */}
+        <DeleteDocumentButton documentId={document.id} />
       </div>
 
       <div className="space-y-6">
@@ -173,123 +162,11 @@ export default async function DocumentPage({ params }) {
           </div>
         </div>
 
-        {/* Edit Metadata Form (Server Action) */}
-        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
-          <h3 className="text-sm font-semibold mb-3">Update Document Metadata</h3>
-          <form action={updateDocument} className="space-y-4">
-            <input type="hidden" name="documentId" value={document.id} />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label htmlFor="edit-title" className="text-xs font-medium text-foreground/75">
-                  Document Title *
-                </label>
-                <input
-                  id="edit-title"
-                  name="title"
-                  type="text"
-                  required
-                  maxLength={120}
-                  defaultValue={document.title}
-                  className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="edit-type" className="text-xs font-medium text-foreground/75">
-                  Type / Format
-                </label>
-                <select
-                  id="edit-type"
-                  name="type"
-                  defaultValue={document.type}
-                  className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
-                >
-                  <option value="PDF" className="dark:bg-neutral-900">PDF</option>
-                  <option value="DOCX" className="dark:bg-neutral-900">DOCX</option>
-                  <option value="JPG" className="dark:bg-neutral-900">JPG</option>
-                  <option value="PNG" className="dark:bg-neutral-900">PNG</option>
-                  <option value="WEBP" className="dark:bg-neutral-900">WEBP</option>
-                  <option value="XML" className="dark:bg-neutral-900">XML</option>
-                  <option value="JSON" className="dark:bg-neutral-900">JSON</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="edit-description" className="text-xs font-medium text-foreground/75">
-                Description
-              </label>
-              <input
-                id="edit-description"
-                name="description"
-                type="text"
-                defaultValue={document.description}
-                className="w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-foreground/20 dark:border-white/20"
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="rounded-md bg-foreground text-background px-4 py-2 text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </div>
+        {/* Edit Metadata Form (Client Leaf Component with useActionState) */}
+        <EditDocumentForm document={document} />
 
-        {/* Expiring Share Links Section (Server Action) */}
-        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold">Secure Expiring Share Links</h3>
-              <p className="text-xs text-foreground/70">
-                Create time-limited access tokens for external verification.
-              </p>
-            </div>
-            <form action={createShareLink} className="flex items-center gap-2">
-              <input type="hidden" name="documentId" value={document.id} />
-              <select
-                name="expiresInMinutes"
-                defaultValue="60"
-                className="rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-xs focus:outline-none dark:border-white/20"
-              >
-                <option value="10" className="dark:bg-neutral-900">10 Minutes</option>
-                <option value="60" className="dark:bg-neutral-900">1 Hour</option>
-                <option value="1440" className="dark:bg-neutral-900">24 Hours</option>
-              </select>
-              <button
-                type="submit"
-                className="rounded-md bg-foreground text-background px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                Create Link
-              </button>
-            </form>
-          </div>
-
-          {shareLinks.length > 0 ? (
-            <ul className="divide-y divide-black/10 dark:divide-white/10 text-xs">
-              {shareLinks.map((link) => (
-                <li key={link.id} className="py-2.5 flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="font-mono font-medium">{link.token}</p>
-                    <p className="text-foreground/60">Expires: {link.expiresAt}</p>
-                  </div>
-                  <form action={revokeShareLink}>
-                    <input type="hidden" name="documentId" value={document.id} />
-                    <input type="hidden" name="linkId" value={link.id} />
-                    <button
-                      type="submit"
-                      className="text-red-600 hover:underline dark:text-red-400"
-                    >
-                      Revoke
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-foreground/50">No active share links.</p>
-          )}
-        </div>
+        {/* Expiring Share Links Section (Client Leaf Component with useActionState) */}
+        <ShareLinkSection documentId={document.id} shareLinks={shareLinks} />
 
         {/* Audit Activity & Sharing Information */}
         {activity.length > 0 && (

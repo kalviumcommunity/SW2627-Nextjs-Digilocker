@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { createDocument, getDocuments } from "@/src/lib/documents";
 import { errorResponse, successResponse } from "@/src/lib/api-validation";
 
@@ -36,6 +37,10 @@ export async function POST(request) {
       type: typeof body.type === "string" ? body.type : "",
       size: typeof body.size === "string" ? body.size : "",
     });
+
+    revalidatePath("/documents");
+    revalidatePath("/dashboard");
+    revalidatePath(`/documents/${document.id}`);
 
     return successResponse({ document }, 201);
   } catch {
