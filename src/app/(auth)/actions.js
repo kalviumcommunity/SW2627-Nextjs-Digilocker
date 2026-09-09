@@ -9,6 +9,7 @@ import {
   getSessionCookieName,
   getSessionCookieOptions,
 } from "../../lib/auth.js";
+import { signIn, signOut } from "../../auth.js";
 
 function readFormValue(formData, name) {
   const value = formData?.get(name);
@@ -18,6 +19,10 @@ function readFormValue(formData, name) {
 async function startSession(user) {
   const cookieStore = await cookies();
   cookieStore.set(getSessionCookieName(), createSessionToken(user), getSessionCookieOptions());
+}
+
+export async function signInWithGoogle() {
+  await signIn("google", { redirectTo: "/dashboard" });
 }
 
 export async function register(formData) {
@@ -45,5 +50,10 @@ export async function logout() {
     ...getSessionCookieOptions(),
     maxAge: 0,
   });
+  try {
+    await signOut({ redirect: false });
+  } catch {
+    // Graceful no-op when NextAuth session is inactive
+  }
   redirect("/login");
 }
