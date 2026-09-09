@@ -28,8 +28,6 @@ export function createSessionToken(user) {
   const payload = encode({
     userId: user.id,
     email: user.email,
-    name: user.name || null,
-    ...(typeof user.businessId !== "undefined" ? { businessId: user.businessId } : {}),
     expiresAt: Date.now() + env.AUTH_SESSION_EXPIRY_SECONDS * 1000,
   });
   return `${payload}.${sign(payload)}`;
@@ -49,13 +47,7 @@ export function verifySessionToken(token) {
   try {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!session.userId || !session.email || session.expiresAt <= Date.now()) return null;
-    return {
-      userId: session.userId,
-      email: session.email,
-      name: session.name || null,
-      ...(typeof session.businessId !== "undefined" ? { businessId: session.businessId } : {}),
-      expiresAt: session.expiresAt,
-    };
+    return session;
   } catch {
     return null;
   }

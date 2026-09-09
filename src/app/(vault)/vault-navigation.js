@@ -1,4 +1,5 @@
 import VaultNavigationLink from "./vault-navigation-link";
+import { logout } from "../(auth)/actions.js";
 
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -14,6 +15,13 @@ export default function VaultNavigation() {
             <VaultNavigationLink href={href}>{label}</VaultNavigationLink>
           </li>
         ))}
+        <li>
+          <form action={logout} className="inline">
+            <button className="rounded px-3 py-2 text-sm font-medium hover:bg-foreground/10" type="submit">
+              Sign out
+            </button>
+          </form>
+        </li>
       </ul>
     </nav>
   );
