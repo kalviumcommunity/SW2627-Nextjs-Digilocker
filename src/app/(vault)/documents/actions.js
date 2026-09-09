@@ -11,6 +11,7 @@ import {
   deleteShareLink as deleteShareLinkService,
   getDocumentById,
 } from "../../../lib/documents.js";
+import { getCurrentUser } from "../../../lib/auth.js";
 
 const ALLOWED_TYPES = ["PDF", "DOCX", "JPG", "JPEG", "PNG", "WEBP", "XML", "JSON"];
 
@@ -31,6 +32,14 @@ function safeRevalidatePath(path) {
  * Ensures the caller is verified before any mutation occurs.
  */
 async function requireAuth() {
+  if (process.env.NEXT_PUBLIC_AUTH_ENABLED === "true") {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new Error("Unauthorized: Active user session required.");
+    }
+    return { userId: user.id };
+  }
+
   try {
     const cookieStore = await cookies();
     const userId = cookieStore?.get?.("demo-user")?.value || "demo-user";
