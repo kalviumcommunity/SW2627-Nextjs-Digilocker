@@ -108,6 +108,8 @@ export const env = {
   // Authentication
   NEXT_PUBLIC_AUTH_ENABLED: parseBoolean(process.env.NEXT_PUBLIC_AUTH_ENABLED, false),
   AUTH_SECRET: process.env.AUTH_SECRET || "",
+  AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID || "",
+  AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET || "",
   AUTH_SESSION_EXPIRY_SECONDS: parseNumber(
     process.env.AUTH_SESSION_EXPIRY_SECONDS,
     "AUTH_SESSION_EXPIRY_SECONDS",

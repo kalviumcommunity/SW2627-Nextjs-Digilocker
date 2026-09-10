@@ -95,7 +95,53 @@ export async function authenticateUser({ email, password }) {
   return { id: user.id, email: user.email, name: user.name };
 }
 
+export function findOrCreateGoogleUser({ id, email, name, image }) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const existing = usersByEmail.get(normalizedEmail);
+  if (existing) {
+    if (!existing.name && name) {
+      existing.name = name;
+    }
+    if (!existing.image && image) {
+      existing.image = image;
+    }
+    return existing;
+  }
+
+  const newUser = {
+    id: id || randomUUID(),
+    email: normalizedEmail,
+    name: typeof name === "string" && name.trim() ? name.trim() : normalizedEmail,
+    provider: "google",
+    image: image || null,
+  };
+  usersByEmail.set(normalizedEmail, newUser);
+  return newUser;
+}
+
 export async function getCurrentUser() {
+  try {
+    const { auth } = await import("../auth.js");
+    const nextAuthSession = await auth();
+    if (nextAuthSession?.user?.email) {
+      const email = normalizeEmail(nextAuthSession.user.email);
+      let user = usersByEmail.get(email);
+      if (!user) {
+        user = findOrCreateGoogleUser({
+          id: nextAuthSession.user.id,
+          email,
+          name: nextAuthSession.user.name,
+          image: nextAuthSession.user.image,
+        });
+      }
+      return user;
+    }
+  } catch {
+    // Graceful fallback when outside NextAuth context or when NextAuth session is inactive
+  }
+
   try {
     const cookieStore = await cookies();
     const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);

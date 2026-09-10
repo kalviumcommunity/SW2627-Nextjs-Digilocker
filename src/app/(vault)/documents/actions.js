@@ -28,6 +28,20 @@ function safeRevalidatePath(path) {
 }
 
 /**
+ * Helper to extract FormData regardless of whether the action is invoked via
+ * React 19's useActionState (prevState, formData) or directly (formData).
+ */
+function extractFormData(firstArg, secondArg) {
+  if (secondArg && typeof secondArg.get === "function") {
+    return secondArg;
+  }
+  if (firstArg && typeof firstArg.get === "function") {
+    return firstArg;
+  }
+  return new FormData();
+}
+
+/**
  * Helper to authenticate and authorize the current session on the server.
  * Ensures the caller is verified before any mutation occurs.
  */
@@ -57,196 +71,310 @@ async function requireAuth() {
 
 /**
  * Server Action: Create a new document in the vault.
- * Receives FormData directly from `<form action={createDocument}>`.
+ * Supports useActionState(createDocument, initialState) signature (prevState, formData)
+ * as well as direct form action invocation createDocument(formData).
+ *
+ * Pattern:
+ * 1. Validate input on the server using Zod safeParse
+ * 2. Return field-level validation errors if invalid (no throwing)
+ * 3. Authenticate and authorize session
+ * 4. Execute mutation
+ * 5. Revalidate affected cache paths
+ * 6. Redirect or return structured success state
  */
-export async function createDocument(formData) {
-  await requireAuth();
+export async function createDocument(prevState, formData) {
+  const form = extractFormData(prevState, formData);
 
-  const rawTitle = formData.get("title");
-  const rawDescription = formData.get("description");
-  const rawType = formData.get("type");
-  const rawSize = formData.get("size");
+  const rawInput = {
+    title: form.get("title") ?? "",
+    description: form.get("description") || undefined,
+    type: form.get("type") || "PDF",
+    size: form.get("size") || undefined,
+  };
 
-  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
-  const description = typeof rawDescription === "string" ? rawDescription.trim() : "";
-  const type = typeof rawType === "string" ? rawType.trim().toUpperCase() : "PDF";
-  const size = typeof rawSize === "string" && rawSize.trim() ? rawSize.trim() : "1.2 MB";
-
-  if (!title || title.length === 0) {
-    throw new Error("Validation failed: Document title is required.");
+  const validationResult = createDocumentSchema.safeParse(rawInput);
+  if (!validationResult.success) {
+    return {
+      errors: formatActionErrors(validationResult.error),
+      data: null,
+    };
   }
-
-  if (title.length > 120) {
-    throw new Error("Validation failed: Document title cannot exceed 120 characters.");
-  }
-
-  if (!ALLOWED_TYPES.includes(type)) {
-    throw new Error(`Validation failed: Unsupported document format "${type}".`);
-  }
-
-  const newDocument = await createDocumentService({
-    title,
-    description: description || "Uploaded vault document.",
-    type,
-    size,
-  });
-
-  // Invalidate affected caches so fresh data is loaded
-  safeRevalidatePath("/documents");
-  safeRevalidatePath("/dashboard");
 
   try {
-    redirect(`/documents/${newDocument.id}`);
+    await requireAuth();
+
+    const newDocument = await createDocumentService({
+      title: validationResult.data.title,
+      description: validationResult.data.description || "Uploaded vault document.",
+      type: validationResult.data.type,
+      size: validationResult.data.size,
+    });
+
+    // Invalidate affected caches only after successful mutation
+    safeRevalidatePath("/documents");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath(`/documents/${newDocument.id}`);
+
+    try {
+      redirect(`/documents/${newDocument.id}`);
+    } catch (redirectErr) {
+      if (
+        redirectErr?.digest?.startsWith("NEXT_REDIRECT") ||
+        redirectErr?.message?.includes("NEXT_REDIRECT")
+      ) {
+        throw redirectErr;
+      }
+      return { errors: null, data: newDocument };
+    }
   } catch (err) {
-    // Rethrow NEXT_REDIRECT for Next.js routing, or return document for testing
-    if (err?.digest?.startsWith("NEXT_REDIRECT") || err?.message?.includes("NEXT_REDIRECT")) {
+    if (
+      err?.digest?.startsWith("NEXT_REDIRECT") ||
+      err?.message?.includes("NEXT_REDIRECT")
+    ) {
       throw err;
     }
-    return { success: true, document: newDocument };
+
+    const formError = err?.message?.includes("Unauthorized")
+      ? "Unauthorized: Active user session required."
+      : "Could not save right now";
+
+    return {
+      errors: {
+        _form: [formError],
+      },
+      data: null,
+    };
   }
 }
 
 /**
  * Server Action: Update metadata for an existing document.
- * Receives FormData directly from `<form action={updateDocument}>`.
+ * Receives (prevState, formData) from useActionState.
  */
-export async function updateDocument(formData) {
-  await requireAuth();
+export async function updateDocument(prevState, formData) {
+  const form = extractFormData(prevState, formData);
 
-  const rawId = formData.get("documentId");
-  const rawTitle = formData.get("title");
-  const rawDescription = formData.get("description");
-  const rawType = formData.get("type");
+  const rawInput = {
+    documentId: form.get("documentId") ?? "",
+    title: form.get("title") ?? "",
+    description: form.get("description") || undefined,
+    type: form.get("type") || undefined,
+  };
 
-  const documentId = typeof rawId === "string" ? rawId.trim() : "";
-  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
-  const description = typeof rawDescription === "string" ? rawDescription.trim() : undefined;
-  const type = typeof rawType === "string" && rawType.trim() ? rawType.trim().toUpperCase() : undefined;
-
-  if (!documentId) {
-    throw new Error("Validation failed: Missing document ID.");
+  const validationResult = updateDocumentSchema.safeParse(rawInput);
+  if (!validationResult.success) {
+    return {
+      errors: formatActionErrors(validationResult.error),
+      data: null,
+    };
   }
 
-  const existingDoc = await getDocumentById(documentId);
-  if (!existingDoc) {
-    throw new Error("Not Found: Document does not exist or has been removed.");
+  try {
+    await requireAuth();
+
+    const existingDoc = await getDocumentById(validationResult.data.documentId);
+    if (!existingDoc) {
+      return {
+        errors: {
+          _form: ["Document does not exist or has been removed."],
+        },
+        data: null,
+      };
+    }
+
+    const updated = await updateDocumentService(validationResult.data.documentId, {
+      title: validationResult.data.title,
+      description: validationResult.data.description,
+      type: validationResult.data.type,
+    });
+
+    // Invalidate all affected vault views
+    safeRevalidatePath("/documents");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath(`/documents/${validationResult.data.documentId}`);
+
+    return { errors: null, data: updated };
+  } catch (err) {
+    const formError = err?.message?.includes("Unauthorized")
+      ? "Unauthorized: Active user session required."
+      : "Could not save right now";
+
+    return {
+      errors: {
+        _form: [formError],
+      },
+      data: null,
+    };
   }
-
-  if (!title || title.length === 0) {
-    throw new Error("Validation failed: Document title cannot be empty.");
-  }
-
-  if (title.length > 120) {
-    throw new Error("Validation failed: Document title cannot exceed 120 characters.");
-  }
-
-  if (type && !ALLOWED_TYPES.includes(type)) {
-    throw new Error(`Validation failed: Unsupported document format "${type}".`);
-  }
-
-  const updated = await updateDocumentService(documentId, {
-    title,
-    description,
-    type,
-  });
-
-  // Invalidate all affected vault views
-  safeRevalidatePath("/documents");
-  safeRevalidatePath("/dashboard");
-  safeRevalidatePath(`/documents/${documentId}`);
-
-  return { success: true, document: updated };
 }
 
 /**
  * Server Action: Delete a document from the vault.
- * Receives FormData directly from `<form action={deleteDocument}>`.
+ * Receives (prevState, formData) from useActionState.
  */
-export async function deleteDocument(formData) {
-  await requireAuth();
+export async function deleteDocument(prevState, formData) {
+  const form = extractFormData(prevState, formData);
 
-  const rawId = formData.get("documentId");
-  const documentId = typeof rawId === "string" ? rawId.trim() : "";
+  const rawInput = {
+    documentId: form.get("documentId") ?? "",
+  };
 
-  if (!documentId) {
-    throw new Error("Validation failed: Missing document ID.");
+  const validationResult = deleteDocumentSchema.safeParse(rawInput);
+  if (!validationResult.success) {
+    return {
+      errors: formatActionErrors(validationResult.error),
+      data: null,
+    };
   }
-
-  const existingDoc = await getDocumentById(documentId);
-  if (!existingDoc) {
-    throw new Error("Not Found: Document does not exist or has been removed.");
-  }
-
-  await deleteDocumentService(documentId);
-
-  // Invalidate vault listings
-  safeRevalidatePath("/documents");
-  safeRevalidatePath("/dashboard");
 
   try {
-    redirect("/documents");
+    await requireAuth();
+
+    const existingDoc = await getDocumentById(validationResult.data.documentId);
+    if (!existingDoc) {
+      return {
+        errors: {
+          _form: ["Document does not exist or has been removed."],
+        },
+        data: null,
+      };
+    }
+
+    await deleteDocumentService(validationResult.data.documentId);
+
+    // Invalidate vault listings
+    safeRevalidatePath("/documents");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath(`/documents/${validationResult.data.documentId}`);
+
+    try {
+      redirect("/documents");
+    } catch (redirectErr) {
+      if (
+        redirectErr?.digest?.startsWith("NEXT_REDIRECT") ||
+        redirectErr?.message?.includes("NEXT_REDIRECT")
+      ) {
+        throw redirectErr;
+      }
+      return { errors: null, data: true };
+    }
   } catch (err) {
-    if (err?.digest?.startsWith("NEXT_REDIRECT") || err?.message?.includes("NEXT_REDIRECT")) {
+    if (
+      err?.digest?.startsWith("NEXT_REDIRECT") ||
+      err?.message?.includes("NEXT_REDIRECT")
+    ) {
       throw err;
     }
-    return { success: true };
+
+    const formError = err?.message?.includes("Unauthorized")
+      ? "Unauthorized: Active user session required."
+      : "Could not delete document right now";
+
+    return {
+      errors: {
+        _form: [formError],
+      },
+      data: null,
+    };
   }
 }
 
 /**
  * Server Action: Generate a secure, expiring share link for a document.
- * Receives FormData directly from `<form action={createShareLink}>`.
+ * Receives (prevState, formData) from useActionState.
  */
-export async function createShareLink(formData) {
-  await requireAuth();
+export async function createShareLink(prevState, formData) {
+  const form = extractFormData(prevState, formData);
 
-  const rawId = formData.get("documentId");
-  const rawExpires = formData.get("expiresInMinutes");
+  const rawInput = {
+    documentId: form.get("documentId") ?? "",
+    expiresInMinutes: form.get("expiresInMinutes") ?? undefined,
+  };
 
-  const documentId = typeof rawId === "string" ? rawId.trim() : "";
-  const expiresInMinutes = rawExpires ? parseInt(String(rawExpires), 10) : 60;
-
-  if (!documentId) {
-    throw new Error("Validation failed: Missing document ID.");
+  const validationResult = createShareLinkActionSchema.safeParse(rawInput);
+  if (!validationResult.success) {
+    return {
+      errors: formatActionErrors(validationResult.error),
+      data: null,
+    };
   }
 
-  const existingDoc = await getDocumentById(documentId);
-  if (!existingDoc) {
-    throw new Error("Not Found: Document does not exist.");
+  try {
+    await requireAuth();
+
+    const existingDoc = await getDocumentById(validationResult.data.documentId);
+    if (!existingDoc) {
+      return {
+        errors: {
+          _form: ["Document does not exist."],
+        },
+        data: null,
+      };
+    }
+
+    const link = await createShareLinkService(validationResult.data.documentId, {
+      expiresInMinutes: validationResult.data.expiresInMinutes,
+    });
+
+    safeRevalidatePath(`/documents/${validationResult.data.documentId}`);
+
+    return { errors: null, data: link };
+  } catch (err) {
+    const formError = err?.message?.includes("Unauthorized")
+      ? "Unauthorized: Active user session required."
+      : "Could not create share link right now";
+
+    return {
+      errors: {
+        _form: [formError],
+      },
+      data: null,
+    };
   }
-
-  if (isNaN(expiresInMinutes) || expiresInMinutes <= 0) {
-    throw new Error("Validation failed: Expiration duration must be a positive number.");
-  }
-
-  const link = await createShareLinkService(documentId, { expiresInMinutes });
-
-  // Invalidate document page to reflect new share link & activity
-  safeRevalidatePath(`/documents/${documentId}`);
-
-  return { success: true, link };
 }
 
 /**
  * Server Action: Revoke an existing share link for a document.
- * Receives FormData directly from `<form action={revokeShareLink}>`.
+ * Receives (prevState, formData) from useActionState.
  */
-export async function revokeShareLink(formData) {
-  await requireAuth();
+export async function revokeShareLink(prevState, formData) {
+  const form = extractFormData(prevState, formData);
 
-  const rawDocId = formData.get("documentId");
-  const rawLinkId = formData.get("linkId");
+  const rawInput = {
+    documentId: form.get("documentId") ?? "",
+    linkId: form.get("linkId") ?? "",
+  };
 
-  const documentId = typeof rawDocId === "string" ? rawDocId.trim() : "";
-  const linkId = typeof rawLinkId === "string" ? rawLinkId.trim() : "";
-
-  if (!documentId || !linkId) {
-    throw new Error("Validation failed: Missing document ID or link ID.");
+  const validationResult = revokeShareLinkActionSchema.safeParse(rawInput);
+  if (!validationResult.success) {
+    return {
+      errors: formatActionErrors(validationResult.error),
+      data: null,
+    };
   }
 
-  await deleteShareLinkService(documentId, linkId);
+  try {
+    await requireAuth();
 
-  safeRevalidatePath(`/documents/${documentId}`);
+    await deleteShareLinkService(
+      validationResult.data.documentId,
+      validationResult.data.linkId
+    );
 
-  return { success: true };
+    safeRevalidatePath(`/documents/${validationResult.data.documentId}`);
+
+    return { errors: null, data: true };
+  } catch (err) {
+    const formError = err?.message?.includes("Unauthorized")
+      ? "Unauthorized: Active user session required."
+      : "Could not revoke share link right now";
+
+    return {
+      errors: {
+        _form: [formError],
+      },
+      data: null,
+    };
+  }
 }
+
