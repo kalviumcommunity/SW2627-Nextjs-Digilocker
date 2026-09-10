@@ -16,6 +16,13 @@ function getSessionSecret() {
   return "local-development-auth-secret";
 }
 
+export const ROLES = {
+  USER: "user",
+  ADMIN: "admin",
+};
+
+const ALLOWED_ROLES = new Set(["user", "admin"]);
+
 function encode(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
@@ -79,9 +86,10 @@ export async function createUser({ email, password, name }) {
     email: credentials.email,
     name: typeof name === "string" && name.trim() ? name.trim() : credentials.email,
     passwordHash: await bcrypt.hash(credentials.password, BCRYPT_ROUNDS),
+    role: "user", // Least privilege: new accounts always default to "user", ignoring any client-supplied role
   };
   usersByEmail.set(user.email, user);
-  return { id: user.id, email: user.email, name: user.name };
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
 export async function authenticateUser({ email, password }) {
@@ -92,7 +100,80 @@ export async function authenticateUser({ email, password }) {
   if (!user || !passwordMatches) {
     throw new Error("Invalid email or password.");
   }
-  return { id: user.id, email: user.email, name: user.name };
+  return { id: user.id, email: user.email, name: user.name, role: user.role || "user" };
+}
+
+export function findOrCreateGoogleUser({ id, email, name, image }) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const existing = usersByEmail.get(normalizedEmail);
+  if (existing) {
+    if (!existing.role) {
+      existing.role = "user";
+    }
+    if (!existing.name && name) {
+      existing.name = name;
+    }
+    if (!existing.image && image) {
+      existing.image = image;
+    }
+    return existing;
+  }
+
+  const newUser = {
+    id: id || randomUUID(),
+    email: normalizedEmail,
+    name: typeof name === "string" && name.trim() ? name.trim() : normalizedEmail,
+    provider: "google",
+    image: image || null,
+    role: "user", // Least privilege: default to "user"
+  };
+  usersByEmail.set(normalizedEmail, newUser);
+  return newUser;
+}
+
+export function getUserByEmail(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  return usersByEmail.get(normalized) || null;
+}
+
+export function setUserRole(email, role) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) {
+    throw new Error("A valid email address is required.");
+  }
+  if (!ALLOWED_ROLES.has(role)) {
+    throw new Error(`Invalid role: ${role}. Allowed roles are: ${Array.from(ALLOWED_ROLES).join(", ")}`);
+  }
+  const user = usersByEmail.get(normalized);
+  if (!user) {
+    throw new Error(`User not found: ${normalized}`);
+  }
+  user.role = role;
+  usersByEmail.set(normalized, user);
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
+}
+
+export function hasRole(userOrRole, requiredRole) {
+  const role = typeof userOrRole === "string" ? userOrRole : userOrRole?.role;
+  return role === requiredRole;
+}
+
+export async function requireRole(requiredRole) {
+  const user = await getCurrentUser();
+  if (!user) {
+    const error = new Error("Unauthorized: Authentication required.");
+    error.statusCode = 401;
+    throw error;
+  }
+  if (user.role !== requiredRole) {
+    const error = new Error(`Forbidden: Access denied. Required role: ${requiredRole}.`);
+    error.statusCode = 403;
+    throw error;
+  }
+  return user;
 }
 
 export function findOrCreateGoogleUser({ id, email, name, image }) {
@@ -146,7 +227,12 @@ export async function getCurrentUser() {
     const cookieStore = await cookies();
     const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
     if (!session) return null;
-    return usersByEmail.get(session.email) || null;
+    const user = usersByEmail.get(session.email);
+    if (!user) return null;
+    if (!user.role) {
+      user.role = session.role || "user";
+    }
+    return user;
   } catch {
     return null;
   }
