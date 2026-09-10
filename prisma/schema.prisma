@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Document {
+  id          String             @id
+  title       String
+  description String?
+  issuedOn    DateTime?
+  type        String
+  size        String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  activities  DocumentActivity[]
+  shareLinks  ShareLink[]
+
+  @@index([createdAt])
+}
+
+model DocumentActivity {
+  id         String   @id @default(uuid())
+  documentId String
+  action     String
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([documentId, createdAt])
+}
+
+model ShareLink {
+  id         String   @id @default(uuid())
+  documentId String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([documentId, expiresAt])
+}

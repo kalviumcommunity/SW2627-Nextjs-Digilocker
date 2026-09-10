@@ -98,9 +98,7 @@ const appUrl = env.NEXT_PUBLIC_APP_URL    // "http://localhost:3000"
 | `DATABASE_LOG_ENABLED` | ✗ | Database query logging | `true` / `false` |
 
 **Connection String Examples:**
-- SQLite: `file:./prisma/dev.db`
 - PostgreSQL: `postgresql://user:pass@localhost:5432/db`
-- MySQL: `mysql://user:pass@localhost:3306/db`
 
 ### Authentication
 
@@ -177,11 +175,22 @@ openssl rand -base64 32
 2. Update development values:
    ```env
    NEXT_PUBLIC_APP_URL=http://localhost:3000
-   DATABASE_URL=file:./prisma/dev.db
+   DATABASE_URL=postgresql://user:password@localhost:5432/digilocker
    NEXT_PUBLIC_AUTH_ENABLED=false
    ```
 
-3. Start MinIO for local S3 (optional):
+3. Install dependencies and prepare the database client:
+   ```bash
+   npm install
+   npx prisma generate
+   npx prisma migrate dev
+   ```
+
+   `migrate dev` is for development databases. Use `prisma migrate deploy` in
+   staging and production to apply committed migrations. Once migration history
+   is established, do not casually use `prisma db push`.
+
+4. Start MinIO for local S3 (optional):
    ```bash
    docker run -p 9000:9000 -p 9001:9001 minio/minio server /minio
    ```
