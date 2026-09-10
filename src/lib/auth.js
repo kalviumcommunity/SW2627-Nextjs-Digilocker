@@ -35,9 +35,6 @@ export function createSessionToken(user) {
   const payload = encode({
     userId: user.id,
     email: user.email,
-    name: user.name || null,
-    role: user.role || "user",
-    ...(typeof user.businessId !== "undefined" ? { businessId: user.businessId } : {}),
     expiresAt: Date.now() + env.AUTH_SESSION_EXPIRY_SECONDS * 1000,
   });
   return `${payload}.${sign(payload)}`;
@@ -57,14 +54,7 @@ export function verifySessionToken(token) {
   try {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!session.userId || !session.email || session.expiresAt <= Date.now()) return null;
-    return {
-      userId: session.userId,
-      email: session.email,
-      name: session.name || null,
-      role: session.role || "user",
-      ...(typeof session.businessId !== "undefined" ? { businessId: session.businessId } : {}),
-      expiresAt: session.expiresAt,
-    };
+    return session;
   } catch {
     return null;
   }
@@ -186,6 +176,32 @@ export async function requireRole(requiredRole) {
   return user;
 }
 
+export function findOrCreateGoogleUser({ id, email, name, image }) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const existing = usersByEmail.get(normalizedEmail);
+  if (existing) {
+    if (!existing.name && name) {
+      existing.name = name;
+    }
+    if (!existing.image && image) {
+      existing.image = image;
+    }
+    return existing;
+  }
+
+  const newUser = {
+    id: id || randomUUID(),
+    email: normalizedEmail,
+    name: typeof name === "string" && name.trim() ? name.trim() : normalizedEmail,
+    provider: "google",
+    image: image || null,
+  };
+  usersByEmail.set(normalizedEmail, newUser);
+  return newUser;
+}
+
 export async function getCurrentUser() {
   try {
     const { auth } = await import("../auth.js");
@@ -200,9 +216,6 @@ export async function getCurrentUser() {
           name: nextAuthSession.user.name,
           image: nextAuthSession.user.image,
         });
-      }
-      if (user && !user.role) {
-        user.role = nextAuthSession.user.role || "user";
       }
       return user;
     }

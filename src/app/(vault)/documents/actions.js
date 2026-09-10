@@ -12,14 +12,8 @@ import {
   getDocumentById,
 } from "../../../lib/documents.js";
 import { getCurrentUser } from "../../../lib/auth.js";
-import {
-  createDocumentSchema,
-  updateDocumentSchema,
-  deleteDocumentSchema,
-  createShareLinkActionSchema,
-  revokeShareLinkActionSchema,
-  formatActionErrors,
-} from "../../../lib/api-validation.js";
+
+const ALLOWED_TYPES = ["PDF", "DOCX", "JPG", "JPEG", "PNG", "WEBP", "XML", "JSON"];
 
 /**
  * Helper to safely trigger path revalidation across both Next.js request lifecycle

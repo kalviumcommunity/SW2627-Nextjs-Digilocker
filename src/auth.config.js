@@ -1,5 +1,5 @@
 import Google from "next-auth/providers/google";
-import { findOrCreateGoogleUser, getUserByEmail, normalizeEmail } from "./lib/auth.js";
+import { findOrCreateGoogleUser, normalizeEmail } from "./lib/auth.js";
 
 /**
  * Auth.js (NextAuth v5) Configuration
@@ -43,15 +43,6 @@ export const authConfig = {
         token.userId = user.id || profile?.sub || token.sub;
         token.email = user.email || profile?.email || token.email;
         token.name = user.name || profile?.name || token.name;
-
-        // Retrieve role from authoritative server-side user store, defaulting safely to "user"
-        const email = normalizeEmail(token.email);
-        const dbUser = email ? getUserByEmail(email) : null;
-        token.role = dbUser?.role || user.role || "user";
-      } else if (token.email && !token.role) {
-        const email = normalizeEmail(token.email);
-        const dbUser = email ? getUserByEmail(email) : null;
-        token.role = dbUser?.role || "user";
       }
       // Never store raw OAuth tokens, access tokens, refresh tokens, or provider secrets in JWT
       return token;
@@ -61,9 +52,8 @@ export const authConfig = {
         session.user.id = token.userId || token.sub;
         session.user.email = token.email;
         session.user.name = token.name;
-        session.user.role = token.role || "user";
       }
-      // Minimal safe session payload: id, name, email, role
+      // Minimal safe session payload: id, name, email
       return session;
     },
   },
