@@ -31,11 +31,13 @@ test("Session tokens are signed and contain an expiring user session", async () 
   const user = await createUser({
     email: `session-${Date.now()}@example.com`,
     password: "correct-horse",
+    name: "Session User",
   });
   const token = createSessionToken(user);
   const session = verifySessionToken(token);
 
   assert.equal(session.userId, user.id);
   assert.equal(session.email, user.email);
+  assert.equal(session.name, "Session User");
   assert.equal(verifySessionToken(`${token}tampered`), null);
 });
