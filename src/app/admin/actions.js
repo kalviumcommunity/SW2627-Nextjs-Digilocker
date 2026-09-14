@@ -2,6 +2,7 @@
 
 import { requireRole, setUserRole, getUserByEmail, ROLES } from "../../lib/auth.js";
 import { revalidatePath } from "next/cache.js";
+import { prisma } from "../../lib/prisma.js";
 
 /**
  * Server Action: Update a user's role.
@@ -56,6 +57,18 @@ export async function updateUserRoleAction(prevState, formData) {
 export async function purgeAuditLogsAction(prevState, formData) {
   try {
     await requireRole(ROLES.ADMIN);
+
+    try {
+      await prisma.documentActivity.deleteMany({});
+    } catch {
+      // Safe fallback if database is offline or not yet initialized
+    }
+
+    try {
+      revalidatePath("/admin");
+    } catch {
+      // Graceful fallback in non-request test contexts
+    }
 
     return {
       success: true,

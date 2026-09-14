@@ -35,6 +35,8 @@ export function createSessionToken(user) {
   const payload = encode({
     userId: user.id,
     email: user.email,
+    name: user.name,
+    role: user.role,
     expiresAt: Date.now() + env.AUTH_SESSION_EXPIRY_SECONDS * 1000,
   });
   return `${payload}.${sign(payload)}`;
