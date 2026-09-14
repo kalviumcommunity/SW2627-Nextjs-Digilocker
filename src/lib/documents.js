@@ -1,5 +1,5 @@
 import { cache } from "react";
-import prisma from "./prisma";
+import prisma from "./prisma.js";
 
 // =============================================================================
 // MOCK DATA - Used as fallback for development/testing
@@ -48,27 +48,6 @@ const documents = [
   },
 ];
 
-/**
- * Fetch all documents from the server.
- * Wrapped in React cache() to deduplicate queries within a single render cycle.
- * In the future, this will query the database via Prisma.
- */
-export async function getDocuments() {
-  return documents;
-}
-
-/**
- * Fetch a single document by ID from the server.
- * Wrapped in React cache() so generateMetadata and DocumentPage share a single
- * data fetch per request during rendering/regeneration without duplicate queries.
- * In the future, this will query the database via Prisma.
- */
-export const getDocumentById = cache(async (id) => {
-  // Simulate async database call
-  // In production: return prisma.document.findUnique({ where: { id } })
-  return documents.find((document) => document.id === id) ?? null;
-});
-
 const documentActivities = {
   "identity-proof": [
     { id: "act-1", action: "Uploaded to vault", timestamp: "January 15, 2026, 10:30 AM" },
@@ -100,47 +79,192 @@ const documentShareLinks = {
 };
 
 /**
- * Fetch audit activity logs for a document.
+ * Helper to ensure a valid user exists for document foreign key relationships.
+ */
+async function ensureUserExists(userId) {
+  const targetId = userId || "demo-user";
+  try {
+    const existing = await prisma.user.findUnique({ where: { id: targetId } });
+    if (existing) return existing;
+    return await prisma.user.upsert({
+      where: { email: `${targetId}@example.com` },
+      update: {},
+      create: {
+        id: targetId,
+        email: `${targetId}@example.com`,
+        name: "Demo User",
+      },
+    });
+  } catch {
+    return { id: targetId, email: `${targetId}@example.com`, name: "Demo User" };
+  }
+}
+
+/**
+ * Fetch all documents from the server using Prisma findMany.
+ * Merges with default vault documents for complete catalogue availability.
+ * Wrapped in React cache() to deduplicate queries within a single render cycle.
+ */
+export async function getDocuments() {
+  try {
+    const dbDocs = await prisma.document.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    const mappedDb = (dbDocs || []).map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      description: doc.description || "",
+      issuedOn: doc.issuedOn || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : ""),
+      type: doc.type,
+      size: doc.size || "",
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      userId: doc.userId,
+    }));
+
+    const merged = [...mappedDb];
+    for (const doc of documents) {
+      if (!merged.some((d) => d.id === doc.id)) {
+        merged.push(doc);
+      }
+    }
+
+    return merged;
+  } catch (error) {
+    console.warn("Prisma query failed, falling back to mock data", error);
+    return documents;
+  }
+}
+
+/**
+ * Fetch a single document by ID from the server using Prisma findUnique.
+ * Wrapped in React cache() so generateMetadata and DocumentPage share a single
+ * data fetch per request during rendering/regeneration without duplicate queries.
+ */
+export const getDocumentById = cache(async (id) => {
+  if (!id) return null;
+  try {
+    const doc = await prisma.document.findUnique({
+      where: { id },
+    });
+    if (doc) {
+      return {
+        id: doc.id,
+        title: doc.title,
+        description: doc.description || "",
+        issuedOn: doc.issuedOn || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : ""),
+        type: doc.type,
+        size: doc.size || "",
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        userId: doc.userId,
+      };
+    }
+    return documents.find((document) => document.id === id) ?? null;
+  } catch (error) {
+    console.warn("Prisma query failed, falling back to mock data", error);
+    return documents.find((document) => document.id === id) ?? null;
+  }
+});
+
+/**
+ * Fetch audit activity logs for a document using Prisma findMany.
  * This is a dependent query requiring a verified document ID.
- * In production: return prisma.documentActivity.findMany({ where: { documentId } })
  */
 export const getDocumentActivity = cache(async (documentId) => {
   if (!documentId) return [];
-  return documentActivities[documentId] ?? [];
+  try {
+    const activities = await prisma.documentActivity.findMany({
+      where: { documentId },
+      orderBy: { createdAt: "desc" },
+    });
+    if (activities && activities.length > 0) {
+      return activities.map((act) => ({
+        id: act.id,
+        action: act.action,
+        timestamp: act.createdAt
+          ? new Date(act.createdAt).toLocaleString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+      }));
+    }
+    return documentActivities[documentId] ?? [];
+  } catch (error) {
+    console.warn("Prisma query failed, falling back to mock data", error);
+    return documentActivities[documentId] ?? [];
+  }
 });
 
 /**
- * Fetch active share links for a document.
+ * Fetch active share links for a document using Prisma findMany.
  * This is a dependent query requiring a verified document ID.
- * In production: return prisma.shareLink.findMany({ where: { documentId } })
  */
 export const getDocumentShareLinks = cache(async (documentId) => {
   if (!documentId) return [];
-  return documentShareLinks[documentId] ?? [];
+  try {
+    const links = await prisma.shareLink.findMany({
+      where: { documentId, active: true },
+      orderBy: { createdAt: "desc" },
+    });
+    if (links && links.length > 0) {
+      return links.map((link) => ({
+        id: link.id,
+        token: link.token,
+        expiresAt: link.expiresAt
+          ? new Date(link.expiresAt).toLocaleString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "Never",
+        active: link.active,
+      }));
+    }
+    return documentShareLinks[documentId] ?? [];
+  } catch (error) {
+    console.warn("Prisma query failed, falling back to mock data", error);
+    return documentShareLinks[documentId] ?? [];
+  }
 });
 
 /**
- * Fetch aggregated vault statistics.
+ * Fetch aggregated vault statistics using Prisma count and aggregation.
  * Independent query that can run concurrently with document fetches.
- * In production: aggregated DB queries
  */
 export const getVaultStats = cache(async () => {
-  const totalDocs = documents.length;
-  const categories = new Set(documents.map((d) => d.type)).size;
-  return {
-    totalDocuments: totalDocs,
-    totalCategories: categories,
-    storageQuotaMB: 100,
-  };
+  try {
+    const allDocs = await getDocuments();
+    const totalDocs = allDocs.length;
+    const categories = new Set(allDocs.map((d) => d.type)).size;
+    return {
+      totalDocuments: totalDocs,
+      totalCategories: categories,
+      storageQuotaMB: 100,
+    };
+  } catch (error) {
+    console.warn("Prisma query failed, falling back to mock data", error);
+    const mockDocs = documents.length;
+    const mockCategories = new Set(documents.map((d) => d.type)).size;
+    return {
+      totalDocuments: mockDocs,
+      totalCategories: mockCategories,
+      storageQuotaMB: 100,
+    };
+  }
 });
 
 /**
- * Add an audit activity log entry for a document.
+ * Add an audit activity log entry for a document using Prisma create.
  */
-export async function addDocumentActivity(documentId, action) {
-  if (!documentActivities[documentId]) {
-    documentActivities[documentId] = [];
-  }
+export async function addDocumentActivity(documentId, action, userId) {
   const timestamp = new Date().toLocaleString("en-US", {
     month: "long",
     day: "numeric",
@@ -148,19 +272,53 @@ export async function addDocumentActivity(documentId, action) {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const newActivity = {
+  const fallbackActivity = {
     id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     action,
     timestamp,
   };
-  documentActivities[documentId].unshift(newActivity);
-  return newActivity;
+
+  if (!documentActivities[documentId]) {
+    documentActivities[documentId] = [];
+  }
+  documentActivities[documentId].unshift(fallbackActivity);
+
+  try {
+    const doc = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, userId: true },
+    });
+    if (doc) {
+      const activityUserId = userId || doc.userId;
+      const created = await prisma.documentActivity.create({
+        data: {
+          documentId,
+          userId: activityUserId,
+          action,
+        },
+      });
+      return {
+        id: created.id,
+        action: created.action,
+        timestamp: new Date(created.createdAt).toLocaleString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+    }
+  } catch (error) {
+    console.warn("Prisma activity creation failed, using in-memory store", error);
+  }
+
+  return fallbackActivity;
 }
 
 /**
- * Create a new document in the vault.
+ * Create a new document in the vault using Prisma $transaction for atomic creation.
  * Supports both API route payloads and Server Action submissions.
- * In production: return prisma.document.create({ data: ... })
  */
 export async function createDocument(documentData) {
   const title = documentData?.title || "Untitled Document";
@@ -195,7 +353,6 @@ export async function createDocument(documentData) {
     type: (documentData?.type || "PDF").toUpperCase(),
     size: documentData?.size || "1.2 MB",
     ...documentData,
-    // Preserve calculated fields
     id: uniqueId,
     title: title.trim(),
     issuedOn,
@@ -205,68 +362,167 @@ export async function createDocument(documentData) {
   documentActivities[newDoc.id] = [];
   documentShareLinks[newDoc.id] = [];
 
-  await addDocumentActivity(newDoc.id, "Uploaded to vault");
+  try {
+    const user = await ensureUserExists(documentData?.userId);
+    const result = await prisma.$transaction(async (tx) => {
+      const createdDoc = await tx.document.upsert({
+        where: { id: uniqueId },
+        update: {
+          title: newDoc.title,
+          description: newDoc.description,
+          type: newDoc.type,
+          size: newDoc.size,
+          issuedOn: newDoc.issuedOn,
+        },
+        create: {
+          id: uniqueId,
+          title: newDoc.title,
+          description: newDoc.description,
+          type: newDoc.type,
+          size: newDoc.size,
+          issuedOn: newDoc.issuedOn,
+          userId: user.id,
+        },
+      });
 
-  return newDoc;
+      await tx.documentActivity.create({
+        data: {
+          documentId: createdDoc.id,
+          userId: user.id,
+          action: "Uploaded to vault",
+        },
+      });
+
+      return createdDoc;
+    });
+
+    await addDocumentActivity(newDoc.id, "Uploaded to vault", user.id);
+
+    return {
+      ...newDoc,
+      id: result.id,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+      userId: result.userId,
+    };
+  } catch (error) {
+    console.warn("Prisma document creation failed, using mock data", error);
+    await addDocumentActivity(newDoc.id, "Uploaded to vault");
+    return newDoc;
+  }
 }
 
 /**
- * Update an existing document's metadata in the vault.
- * In production: return prisma.document.update({ where: { id }, data: ... })
+ * Update an existing document's metadata using Prisma $transaction.
  */
 export async function updateDocument(id, updates) {
   const index = documents.findIndex((d) => d.id === id);
-  if (index === -1) {
-    return null;
+  let existing = index !== -1 ? documents[index] : null;
+
+  const titleUpdate = updates.title !== undefined ? updates.title.trim() : undefined;
+  const descUpdate = updates.description !== undefined ? updates.description.trim() : undefined;
+  const typeUpdate = updates.type !== undefined ? updates.type.toUpperCase() : undefined;
+
+  let updatedDoc = existing
+    ? {
+        ...existing,
+        ...(titleUpdate !== undefined && { title: titleUpdate }),
+        ...(descUpdate !== undefined && { description: descUpdate }),
+        ...(typeUpdate !== undefined && { type: typeUpdate }),
+      }
+    : null;
+
+  if (index !== -1 && updatedDoc) {
+    documents[index] = updatedDoc;
   }
 
-  const existing = documents[index];
-  const updatedDoc = {
-    ...existing,
-    ...(updates.title !== undefined && { title: updates.title.trim() }),
-    ...(updates.description !== undefined && { description: updates.description.trim() }),
-    ...(updates.type !== undefined && { type: updates.type.toUpperCase() }),
-  };
+  try {
+    const dbDoc = await prisma.document.findUnique({ where: { id } });
+    if (!dbDoc && !existing) {
+      return null;
+    }
 
-  documents[index] = updatedDoc;
-  await addDocumentActivity(id, "Metadata updated");
+    if (dbDoc) {
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.document.update({
+          where: { id },
+          data: {
+            ...(titleUpdate !== undefined && { title: titleUpdate }),
+            ...(descUpdate !== undefined && { description: descUpdate }),
+            ...(typeUpdate !== undefined && { type: typeUpdate }),
+          },
+        });
 
-  return updatedDoc;
+        await tx.documentActivity.create({
+          data: {
+            documentId: id,
+            userId: dbDoc.userId,
+            action: "Metadata updated",
+          },
+        });
+
+        return updated;
+      });
+
+      await addDocumentActivity(id, "Metadata updated", dbDoc.userId);
+      return {
+        id: result.id,
+        title: result.title,
+        description: result.description,
+        type: result.type,
+        size: result.size,
+        issuedOn: result.issuedOn,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+        userId: result.userId,
+      };
+    }
+  } catch (error) {
+    console.warn("Prisma document update failed, using mock data", error);
+  }
+
+  if (updatedDoc) {
+    await addDocumentActivity(id, "Metadata updated");
+    return updatedDoc;
+  }
+
+  return null;
 }
 
 /**
- * Delete a document from the vault.
- * In production: return prisma.document.delete({ where: { id } })
+ * Delete a document from the vault using Prisma delete.
  */
 export async function deleteDocument(id) {
   const index = documents.findIndex((d) => d.id === id);
-  if (index === -1) {
-    return false;
+  let found = index !== -1;
+
+  if (found) {
+    documents.splice(index, 1);
+    delete documentActivities[id];
+    delete documentShareLinks[id];
   }
 
-  documents.splice(index, 1);
-  delete documentActivities[id];
-  delete documentShareLinks[id];
+  try {
+    const dbDoc = await prisma.document.findUnique({ where: { id } });
+    if (dbDoc) {
+      await prisma.document.delete({ where: { id } });
+      return true;
+    }
+  } catch (error) {
+    console.warn("Prisma document deletion failed, using mock state", error);
+  }
 
-  return true;
+  return found;
 }
 
 /**
- * Create an expiring share link for a document.
- * In production: return prisma.shareLink.create({ data: ... })
+ * Create an expiring share link using Prisma $transaction.
  */
 export async function createShareLink(documentId, { expiresInMinutes = 60 } = {}) {
   const document = documents.find((d) => d.id === documentId);
-  if (!document) {
-    return null;
-  }
-
-  if (!documentShareLinks[documentId]) {
-    documentShareLinks[documentId] = [];
-  }
 
   const expiresDate = new Date(Date.now() + expiresInMinutes * 60 * 1000);
-  const expiresAt = expiresDate.toLocaleString("en-US", {
+  const expiresAtFormatted = expiresDate.toLocaleString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -278,14 +534,62 @@ export async function createShareLink(documentId, { expiresInMinutes = 60 } = {}
   const newLink = {
     id: `link-${Date.now()}`,
     token,
-    expiresAt,
+    expiresAt: expiresAtFormatted,
     active: true,
   };
 
+  if (!documentShareLinks[documentId]) {
+    documentShareLinks[documentId] = [];
+  }
   documentShareLinks[documentId].unshift(newLink);
-  await addDocumentActivity(documentId, `Shared via expiring link (${expiresInMinutes}m)`);
 
-  return newLink;
+  try {
+    const dbDoc = await prisma.document.findUnique({ where: { id: documentId } });
+    if (!dbDoc && !document) {
+      return null;
+    }
+
+    if (dbDoc) {
+      const created = await prisma.$transaction(async (tx) => {
+        const link = await tx.shareLink.create({
+          data: {
+            token,
+            expiresAt: expiresDate,
+            active: true,
+            documentId,
+            createdBy: dbDoc.userId,
+          },
+        });
+
+        await tx.documentActivity.create({
+          data: {
+            documentId,
+            userId: dbDoc.userId,
+            action: `Shared via expiring link (${expiresInMinutes}m)`,
+          },
+        });
+
+        return link;
+      });
+
+      await addDocumentActivity(documentId, `Shared via expiring link (${expiresInMinutes}m)`, dbDoc.userId);
+      return {
+        id: created.id,
+        token: created.token,
+        expiresAt: expiresAtFormatted,
+        active: created.active,
+      };
+    }
+  } catch (error) {
+    console.warn("Prisma createShareLink failed, using mock data", error);
+  }
+
+  if (document) {
+    await addDocumentActivity(documentId, `Shared via expiring link (${expiresInMinutes}m)`);
+    return newLink;
+  }
+
+  return null;
 }
 
 // =============================================================================
@@ -687,20 +991,36 @@ export const getSharedDocumentByToken = cache(async (shareToken) => {
 
 
 /**
- * Delete a share link for a document.
+ * Delete a share link for a document using Prisma delete.
  */
 export async function deleteShareLink(documentId, linkId) {
-  if (!documentShareLinks[documentId]) {
-    return false;
+  let found = false;
+  if (documentShareLinks[documentId]) {
+    const index = documentShareLinks[documentId].findIndex((l) => l.id === linkId);
+    if (index !== -1) {
+      documentShareLinks[documentId].splice(index, 1);
+      found = true;
+    }
   }
 
-  const index = documentShareLinks[documentId].findIndex((l) => l.id === linkId);
-  if (index === -1) {
-    return false;
+  try {
+    const link = await prisma.shareLink.findUnique({
+      where: { id: linkId },
+      include: { document: true },
+    });
+    if (link) {
+      await prisma.shareLink.delete({ where: { id: linkId } });
+      await addDocumentActivity(documentId, "Revoked share link", link.createdBy);
+      return true;
+    }
+  } catch (error) {
+    console.warn("Prisma deleteShareLink failed, using mock state", error);
   }
 
-  documentShareLinks[documentId].splice(index, 1);
-  await addDocumentActivity(documentId, "Revoked share link");
+  if (found) {
+    await addDocumentActivity(documentId, "Revoked share link");
+    return true;
+  }
 
-  return true;
+  return false;
 }
