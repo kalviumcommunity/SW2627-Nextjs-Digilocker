@@ -176,32 +176,6 @@ export async function requireRole(requiredRole) {
   return user;
 }
 
-export function findOrCreateGoogleUser({ id, email, name, image }) {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) return null;
-
-  const existing = usersByEmail.get(normalizedEmail);
-  if (existing) {
-    if (!existing.name && name) {
-      existing.name = name;
-    }
-    if (!existing.image && image) {
-      existing.image = image;
-    }
-    return existing;
-  }
-
-  const newUser = {
-    id: id || randomUUID(),
-    email: normalizedEmail,
-    name: typeof name === "string" && name.trim() ? name.trim() : normalizedEmail,
-    provider: "google",
-    image: image || null,
-  };
-  usersByEmail.set(normalizedEmail, newUser);
-  return newUser;
-}
-
 export async function getCurrentUser() {
   try {
     const { auth } = await import("../auth.js");
