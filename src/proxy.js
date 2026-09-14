@@ -6,12 +6,22 @@ import { verifySessionToken } from "./lib/auth.js";
  * Protects privileged routes (/admin) by verifying user authentication and role.
  */
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 
 export async function proxy(request) {
   const url = request.nextUrl || new URL(request.url);
   const pathname = url.pathname;
+
+  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
+  const isVaultRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/documents");
+
+  if (authEnabled && isVaultRoute) {
+    const sessionCookie = request.cookies?.get?.("digilocker-session");
+    if (!sessionCookie?.value) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
 
   if (pathname.startsWith("/admin")) {
     let isAuthenticated = false;
