@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { updateDocument } from "@/src/app/(vault)/documents/actions";
 import { useOptimisticDocument } from "@/src/components/optimistic-document-provider";
 
@@ -11,12 +12,13 @@ const initialState = {
 
 export function EditDocumentForm({ document }) {
   const { dispatchOptimisticUpdate } = useOptimisticDocument();
+  const router = useRouter();
   
   const [state, formAction, isPending] = useActionState(
     async (prevState, formData) => {
-      // Dispatch optimistic update
       dispatchOptimisticUpdate({
         type: "UPDATE",
+        documentId: formData.get("documentId"),
         document: {
           title: formData.get("title"),
           type: formData.get("type"),
@@ -24,8 +26,10 @@ export function EditDocumentForm({ document }) {
         },
       });
 
-      // Call the real action
-      return updateDocument(prevState, formData);
+      const result = await updateDocument(prevState, formData);
+
+      router.refresh();
+      return result;
     },
     initialState
   );
@@ -52,7 +56,12 @@ export function EditDocumentForm({ document }) {
         </div>
       )}
 
-      <form action={formAction} className="space-y-4">
+      <form action={formAction} aria-busy={isPending} className="space-y-4">
+        {isPending && (
+          <p role="status" aria-live="polite" className="text-xs text-foreground/60">
+            Saving document metadata...
+          </p>
+        )}
         <input type="hidden" name="documentId" value={document.id} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

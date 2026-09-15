@@ -143,6 +143,34 @@ test("Action Validation and Error Returns in Server Actions", async (t) => {
     );
   });
 
+  await t.test("edit metadata uses optimistic state and refreshes from the server", () => {
+    assert.match(
+      editFormContent,
+      /dispatchOptimisticUpdate\s*\(\s*\{\s*type:\s*["']UPDATE["']/s,
+      "edit form must apply an optimistic metadata update"
+    );
+    assert.match(
+      editFormContent,
+      /router\.refresh\(\)/,
+      "edit form must reconcile with the server-rendered document"
+    );
+    assert.match(
+      editFormContent,
+      /aria-busy=\{isPending\}/,
+      "edit form must expose its pending state"
+    );
+    assert.match(
+      editFormContent,
+      /Saving document metadata\.\.\./,
+      "edit form must provide a visible pending status"
+    );
+    assert.match(
+      fs.readFileSync(path.resolve("src/components/optimistic-document-provider.js"), "utf-8"),
+      /useOptimistic/,
+      "document metadata must be held in temporary useOptimistic state"
+    );
+  });
+
   await t.test("createDocument creates document on valid input and returns structured data or redirects", async () => {
     const formData = new FormData();
     formData.append("title", "Birth Certificate");
