@@ -10,6 +10,9 @@ export function OptimisticDocumentProvider({ document, children }) {
     (state, action) => {
       switch (action.type) {
         case "UPDATE":
+          if (action.documentId !== state.id) {
+            return state;
+          }
           return { ...state, ...action.document };
         default:
           return state;
