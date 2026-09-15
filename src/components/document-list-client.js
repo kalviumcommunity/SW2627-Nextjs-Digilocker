@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
 
 /**
  * DocumentListClient - Client Component
@@ -21,13 +22,14 @@ import Link from "next/link";
  * Client-side React hooks (useState) manage the interactive state.
  */
 export function DocumentListClient({ documents, userId, renderedAt }) {
+  const { optimisticDocuments } = useOptimisticVault();
   const [selectedDocId, setSelectedDocId] = useState(null);
 
   // Find the selected document from the list
-  const selectedDocument = documents.find((doc) => doc.id === selectedDocId);
+  const selectedDocument = optimisticDocuments.find((doc) => doc.id === selectedDocId);
 
   // If no documents, show empty state
-  if (documents.length === 0) {
+  if (optimisticDocuments.length === 0) {
     return (
       <div className="rounded-lg border border-black/10 bg-black/5 p-8 text-center dark:border-white/15 dark:bg-white/5">
         <h3 className="text-lg font-medium">No documents yet</h3>
@@ -60,7 +62,7 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
       <div className="lg:col-span-2">
         <div className="mb-4">
           <h2 className="text-lg font-semibold">
-            Documents ({documents.length})
+            Documents ({optimisticDocuments.length})
           </h2>
           <p className="text-sm text-foreground/75">
             Click a document to view details
@@ -68,7 +70,7 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {documents.map((document) => (
+          {optimisticDocuments.map((document) => (
             <button
               key={document.id}
               onClick={() => setSelectedDocId(document.id)}

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getDocuments, getVaultStats } from "@/src/lib/documents";
+import { OptimisticVaultProvider } from "@/src/components/optimistic-vault-provider";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 
@@ -52,6 +53,8 @@ async function DashboardHeader() {
   );
 }
 
+
+
 /**
  * RecentDocuments - Server Component
  * 
@@ -60,6 +63,10 @@ async function DashboardHeader() {
  */
 async function RecentDocuments() {
   const documents = await getDocuments();
-  return <DocumentList documents={documents} />;
+  return (
+    <OptimisticVaultProvider documents={documents}>
+      <DocumentList documents={documents} />
+    </OptimisticVaultProvider>
+  );
 }
 

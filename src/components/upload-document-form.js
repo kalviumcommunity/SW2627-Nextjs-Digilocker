@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { createDocument } from "@/src/app/(vault)/documents/actions";
+import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
 
 const initialState = {
   errors: null,
@@ -9,13 +10,44 @@ const initialState = {
 };
 
 export function UploadDocumentForm() {
+  const { dispatchOptimisticUpdate } = useOptimisticVault();
+  const formRef = useRef(null);
+
   const [state, formAction, isPending] = useActionState(
-    createDocument,
+    async (prevState, formData) => {
+      // Dispatch optimistic update
+      const title = formData.get("title");
+      const type = formData.get("type");
+      const size = formData.get("size");
+      const description = formData.get("description");
+
+      dispatchOptimisticUpdate({
+        type: "CREATE",
+        document: {
+          id: `temp-${Date.now()}`,
+          title,
+          type,
+          size,
+          description,
+          issuedOn: new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          }),
+        },
+      });
+
+      // Clear the form immediately for a snappy feel
+      formRef.current?.reset();
+
+      // Call the real action
+      return createDocument(prevState, formData);
+    },
     initialState
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       {state.errors?._form?.[0] && (
         <div
           role="alert"

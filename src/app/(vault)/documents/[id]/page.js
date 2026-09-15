@@ -8,6 +8,8 @@ import {
 import { DeleteDocumentButton } from "@/src/components/delete-document-button";
 import { EditDocumentForm } from "@/src/components/edit-document-form";
 import { ShareLinkSection } from "@/src/components/share-link-section";
+import { OptimisticDocumentProvider } from "@/src/components/optimistic-document-provider";
+import { DocumentDetailsClient } from "@/src/components/document-details-client";
 
 // Document records change through infrequent vault operations. Refresh this
 // individual document route within five minutes without making the vault
@@ -128,67 +130,41 @@ export default async function DocumentPage({ params }) {
         <DeleteDocumentButton documentId={document.id} />
       </div>
 
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {document.title}
-          </h1>
-          <p className="text-foreground/75">{document.description}</p>
-        </div>
+      <OptimisticDocumentProvider document={document}>
+        <div className="space-y-6">
+          {/* Document Details Component consuming optimistic state */}
+          <DocumentDetailsClient />
 
-        {/* Document Details Grid */}
-        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-medium text-foreground/75">Type</h3>
-              <p className="mt-1 text-lg font-semibold">{document.type}</p>
+          {/* Edit Metadata Form (Client Leaf Component with useActionState) */}
+          <EditDocumentForm document={document} />
+
+          {/* Expiring Share Links Section (Client Leaf Component with useActionState) */}
+          <ShareLinkSection documentId={document.id} shareLinks={shareLinks} />
+
+          {/* Audit Activity & Sharing Information */}
+          {activity.length > 0 && (
+            <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+              <h3 className="text-sm font-semibold mb-3">Activity & Verification</h3>
+              <ul className="space-y-2 text-sm text-foreground/80">
+                {activity.map((item) => (
+                  <li key={item.id} className="flex justify-between items-center text-xs">
+                    <span>{item.action}</span>
+                    <span className="text-foreground/50">{item.timestamp}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div>
-              <h3 className="text-sm font-medium text-foreground/75">Size</h3>
-              <p className="mt-1 text-lg font-semibold">{document.size}</p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-foreground/75">
-                Issued On
-              </h3>
-              <p className="mt-1 text-lg font-semibold">{document.issuedOn}</p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-foreground/75">
-                Document ID
-              </h3>
-              <p className="mt-1 text-sm font-mono">{document.id}</p>
-            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button className="rounded-md bg-foreground text-background px-4 py-2 font-medium hover:opacity-90 transition-opacity">
+              Download
+            </button>
           </div>
         </div>
-
-        {/* Edit Metadata Form (Client Leaf Component with useActionState) */}
-        <EditDocumentForm document={document} />
-
-        {/* Expiring Share Links Section (Client Leaf Component with useActionState) */}
-        <ShareLinkSection documentId={document.id} shareLinks={shareLinks} />
-
-        {/* Audit Activity & Sharing Information */}
-        {activity.length > 0 && (
-          <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
-            <h3 className="text-sm font-semibold mb-3">Activity & Verification</h3>
-            <ul className="space-y-2 text-sm text-foreground/80">
-              {activity.map((item) => (
-                <li key={item.id} className="flex justify-between items-center text-xs">
-                  <span>{item.action}</span>
-                  <span className="text-foreground/50">{item.timestamp}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <button className="rounded-md bg-foreground text-background px-4 py-2 font-medium hover:opacity-90 transition-opacity">
-            Download
-          </button>
-        </div>
-      </div>
+      </OptimisticDocumentProvider>
     </div>
   );
+
+
 }
