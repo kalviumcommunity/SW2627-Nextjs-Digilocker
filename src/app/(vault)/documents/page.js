@@ -4,6 +4,7 @@ import { getDocuments } from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 import { UploadDocumentForm } from "@/src/components/upload-document-form";
+import { OptimisticVaultProvider } from "@/src/components/optimistic-vault-provider";
 
 /**
  * DocumentsPage - Server Component
@@ -32,18 +33,20 @@ export default async function DocumentsPage() {
         <VaultHeader documents={documents} userId={userId} renderedAt={renderedAt} />
       </Suspense>
 
-      {/* Upload Document Form with Server Action (Client Component Leaf with useActionState) */}
-      <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
-        <h2 className="text-lg font-semibold mb-1">Upload Document to Vault</h2>
-        <p className="text-sm text-foreground/75 mb-4">
-          Add a new verified document to your secure vault via direct Server Action mutation.
-        </p>
-        <UploadDocumentForm />
-      </div>
+      <OptimisticVaultProvider documents={documents}>
+        {/* Upload Document Form with Server Action (Client Component Leaf with useActionState) */}
+        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+          <h2 className="text-lg font-semibold mb-1">Upload Document to Vault</h2>
+          <p className="text-sm text-foreground/75 mb-4">
+            Add a new verified document to your secure vault via direct Server Action mutation.
+          </p>
+          <UploadDocumentForm />
+        </div>
 
-      <Suspense fallback={<DocumentGridSkeleton count={6} />}>
-        <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} />
-      </Suspense>
+        <Suspense fallback={<DocumentGridSkeleton count={6} />}>
+          <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} />
+        </Suspense>
+      </OptimisticVaultProvider>
     </section>
   );
 }

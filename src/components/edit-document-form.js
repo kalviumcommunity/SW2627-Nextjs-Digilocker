@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { updateDocument } from "@/src/app/(vault)/documents/actions";
+import { useOptimisticDocument } from "@/src/components/optimistic-document-provider";
 
 const initialState = {
   errors: null,
@@ -9,8 +10,23 @@ const initialState = {
 };
 
 export function EditDocumentForm({ document }) {
+  const { dispatchOptimisticUpdate } = useOptimisticDocument();
+  
   const [state, formAction, isPending] = useActionState(
-    updateDocument,
+    async (prevState, formData) => {
+      // Dispatch optimistic update
+      dispatchOptimisticUpdate({
+        type: "UPDATE",
+        document: {
+          title: formData.get("title"),
+          type: formData.get("type"),
+          description: formData.get("description"),
+        },
+      });
+
+      // Call the real action
+      return updateDocument(prevState, formData);
+    },
     initialState
   );
 
