@@ -78,6 +78,41 @@ const documentShareLinks = {
   "insurance-policy": [],
 };
 
+const SORT_OPTIONS = new Set(["newest", "oldest", "name-asc", "name-desc"]);
+
+export function normalizeDocumentQuery({ q = "", type = "", sort = "newest" } = {}) {
+  const normalizedType = typeof type === "string" ? type.trim().toUpperCase() : "";
+  const normalizedSort = typeof sort === "string" && SORT_OPTIONS.has(sort) ? sort : "newest";
+
+  return {
+    q: typeof q === "string" ? q.trim() : "",
+    type: normalizedType,
+    sort: normalizedSort,
+  };
+}
+
+export function filterAndSortDocuments(documentsToFilter, query) {
+  const { q, type, sort } = normalizeDocumentQuery(query);
+  const searchTerm = q.toLowerCase();
+  const filtered = documentsToFilter.filter((document) => {
+    const matchesSearch = !searchTerm || [document.title, document.description, document.type]
+      .some((value) => String(value || "").toLowerCase().includes(searchTerm));
+    const matchesType = !type || String(document.type || "").toUpperCase() === type;
+    return matchesSearch && matchesType;
+  });
+
+  return filtered.sort((first, second) => {
+    if (sort === "name-asc" || sort === "name-desc") {
+      const comparison = String(first.title || "").localeCompare(String(second.title || ""));
+      return sort === "name-asc" ? comparison : -comparison;
+    }
+
+    const firstDate = first.createdAt ? new Date(first.createdAt).getTime() : 0;
+    const secondDate = second.createdAt ? new Date(second.createdAt).getTime() : 0;
+    return sort === "oldest" ? firstDate - secondDate : secondDate - firstDate;
+  });
+}
+
 /**
  * Helper to ensure a valid user exists for document foreign key relationships.
  */

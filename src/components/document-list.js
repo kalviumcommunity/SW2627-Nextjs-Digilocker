@@ -1,4 +1,3 @@
-import { getDocuments } from "@/src/lib/documents";
 import { DocumentListClient } from "@/src/components/document-list-client";
 
 /**
@@ -14,8 +13,8 @@ import { DocumentListClient } from "@/src/components/document-list-client";
  * The DocumentListClient receives the data as props and handles all interactive behavior
  * like document selection, showing/hiding details, and user interactions.
  */
-export async function DocumentList({ documents, userId, renderedAt }) {
+export async function DocumentList({ documents, userId, renderedAt, query }) {
   // Pass serializable document data and request-specific values to the Client Component
   // The Client Component handles all state management and interactivity
-  return <DocumentListClient documents={documents} userId={userId} renderedAt={renderedAt} />;
+  return <DocumentListClient documents={documents} userId={userId} renderedAt={renderedAt} query={query} />;
 }

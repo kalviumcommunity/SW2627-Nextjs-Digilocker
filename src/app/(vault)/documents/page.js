@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
-import { getDocuments } from "@/src/lib/documents";
+import { filterAndSortDocuments, getDocuments, normalizeDocumentQuery } from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 import { UploadDocumentForm } from "@/src/components/upload-document-form";
@@ -23,20 +23,21 @@ import { OptimisticVaultProvider } from "@/src/components/optimistic-vault-provi
 // Force dynamic rendering for this route - fresh render on every request
 export const dynamic = "force-dynamic";
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({ searchParams }) {
+  const query = normalizeDocumentQuery(await searchParams);
   // Fetch server-specific request data and documents in parallel
-  const { documents, userId, renderedAt } = await fetchVaultData();
+  const { documents, userId, renderedAt } = await fetchVaultData(query);
   
   return (
-    <section className="space-y-6">
+    <section className="vault-shell space-y-6 pt-3">
       <Suspense fallback={<VaultHeaderSkeleton />}>
         <VaultHeader documents={documents} userId={userId} renderedAt={renderedAt} />
       </Suspense>
 
       <OptimisticVaultProvider documents={documents}>
         {/* Upload Document Form with Server Action (Client Component Leaf with useActionState) */}
-        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
-          <h2 className="text-lg font-semibold mb-1">Upload Document to Vault</h2>
+        <div className="panel accent-panel p-6">
+          <h2 className="text-lg font-semibold mb-1 text-[#004b87]">Upload Document to Vault</h2>
           <p className="text-sm text-foreground/75 mb-4">
             Add a new verified document to your secure vault via direct Server Action mutation.
           </p>
@@ -44,7 +45,7 @@ export default async function DocumentsPage() {
         </div>
 
         <Suspense fallback={<DocumentGridSkeleton count={6} />}>
-          <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} />
+          <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} query={query} />
         </Suspense>
       </OptimisticVaultProvider>
     </section>
@@ -60,6 +61,7 @@ export default async function DocumentsPage() {
 function VaultHeader({ documents, userId, renderedAt }) {
   return (
     <div className="space-y-2">
+      <p className="eyebrow">My documents</p>
       <h1 className="text-3xl font-semibold tracking-tight">My DigiLocker Vault</h1>
       <p className="text-foreground/75">
         You have {documents.length} document{documents.length !== 1 ? "s" : ""} securely stored.
@@ -78,8 +80,8 @@ function VaultHeader({ documents, userId, renderedAt }) {
  * Displays the list of vault documents.
  * Passes server-specific request data to DocumentList for display to the client.
  */
-function VaultDocuments({ documents, userId, renderedAt }) {
-  return <DocumentList documents={documents} userId={userId} renderedAt={renderedAt} />;
+function VaultDocuments({ documents, userId, renderedAt, query }) {
+  return <DocumentList documents={documents} userId={userId} renderedAt={renderedAt} query={query} />;
 }
 
 /**
@@ -91,12 +93,13 @@ function VaultDocuments({ documents, userId, renderedAt }) {
  * 
  * Concurrently captures request-specific values that prove dynamic rendering.
  */
-async function fetchVaultData() {
+async function fetchVaultData(query) {
   // Start independent queries and request data concurrently in parallel
-  const [cookieStore, documents] = await Promise.all([
+  const [cookieStore, allDocuments] = await Promise.all([
     cookies(),
     getDocuments(),
   ]);
+  const documents = filterAndSortDocuments(allDocuments, query);
   
   const userId = cookieStore.get("demo-user")?.value || "demo-user";
   const renderedAt = new Date().toISOString();
