@@ -17,7 +17,7 @@ export default function VaultNavigation() {
         ))}
         <li>
           <form action={logout} className="inline">
-            <button className="rounded px-3 py-2 text-sm font-medium hover:bg-foreground/10" type="submit">
+            <button className="rounded-md px-3 py-2 text-sm font-medium text-[#62738a] hover:bg-[#fff4e8] hover:text-[#b45309]" type="submit">
               Sign out
             </button>
           </form>

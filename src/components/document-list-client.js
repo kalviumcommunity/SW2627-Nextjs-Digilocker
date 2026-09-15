@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
 
 /**
@@ -21,37 +22,130 @@ import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
  * Data comes from the server as serializable props.
  * Client-side React hooks (useState) manage the interactive state.
  */
-export function DocumentListClient({ documents, userId, renderedAt }) {
+export function DocumentListClient({ userId, renderedAt, query }) {
   const { optimisticDocuments } = useOptimisticVault();
   const [selectedDocId, setSelectedDocId] = useState(null);
+  const [searchValue, setSearchValue] = useState(query?.q || "");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function updateQuery(updates) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [name, value] of Object.entries(updates)) {
+      if (value) {
+        params.set(name, value);
+      } else {
+        params.delete(name);
+      }
+    }
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }
+
+  function handleSearchSubmit(event) {
+    event.preventDefault();
+    updateQuery({ q: searchValue.trim() });
+  }
 
   // Find the selected document from the list
   const selectedDocument = optimisticDocuments.find((doc) => doc.id === selectedDocId);
 
-  // If no documents, show empty state
-  if (optimisticDocuments.length === 0) {
-    return (
-      <div className="rounded-lg border border-black/10 bg-black/5 p-8 text-center dark:border-white/15 dark:bg-white/5">
-        <h3 className="text-lg font-medium">No documents yet</h3>
-        <p className="mt-2 text-sm text-foreground/75">
-          Upload your first document to get started.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      {query && (
+        <div className="panel border-t-2 border-t-[#f58220] p-4">
+          <form key={`${query.q}:${query.type}:${query.sort}`} onSubmit={handleSearchSubmit} className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+            <div className="space-y-1">
+              <label htmlFor="document-search" className="text-sm font-medium">
+                Search documents
+              </label>
+              <input
+                id="document-search"
+                name="q"
+                type="search"
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder="Search by title or description"
+                className="w-full rounded-md border border-[#c8d8e8] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066b3]/20"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="document-type" className="text-sm font-medium">
+                Type
+              </label>
+              <select
+                id="document-type"
+                value={query.type}
+                onChange={(event) => updateQuery({ type: event.target.value })}
+                className="w-full rounded-md border border-[#c8d8e8] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066b3]/20"
+              >
+                <option value="">All types</option>
+                <option value="PDF">PDF</option>
+                <option value="DOCX">DOCX</option>
+                <option value="JPG">JPG</option>
+                <option value="PNG">PNG</option>
+                <option value="WEBP">WEBP</option>
+                <option value="JSON">JSON</option>
+                <option value="XML">XML</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="document-sort" className="text-sm font-medium">
+                Sort
+              </label>
+              <select
+                id="document-sort"
+                value={query.sort}
+                onChange={(event) => updateQuery({ sort: event.target.value })}
+                className="w-full rounded-md border border-[#c8d8e8] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066b3]/20"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+              </select>
+            </div>
+          </form>
+
+          {(query.q || query.type || query.sort !== "newest") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchValue("");
+                updateQuery({ q: "", type: "", sort: "" });
+              }}
+              className="mt-3 text-sm font-medium underline underline-offset-2 hover:no-underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {optimisticDocuments.length === 0 ? (
+        <div className="rounded-lg border border-black/10 bg-black/5 p-8 text-center dark:border-white/15 dark:bg-white/5">
+          <h3 className="text-lg font-medium">
+            {query?.q || query?.type ? "No documents match your current search or filters." : "No documents yet"}
+          </h3>
+          <p className="mt-2 text-sm text-foreground/75">
+            {query?.q || query?.type ? "Try changing your search or clearing the filters." : "Upload your first document to get started."}
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Server Render Information - Demonstrates Dynamic Rendering */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm dark:border-blue-900/30 dark:bg-blue-950/20">
-        <p className="font-medium text-blue-900 dark:text-blue-200">
-          Server Rendered Request Information
+      <div className="rounded-lg border border-[#b9d8ef] bg-[#eaf5fd] p-4 text-sm">
+        <p className="font-medium text-[#004b87]">
+          Vault session
         </p>
-        <div className="mt-2 grid gap-2 text-xs text-blue-800 dark:text-blue-300">
-          <p><span className="font-medium">User ID:</span> <span className="font-mono">{userId}</span></p>
-          <p><span className="font-medium">Rendered at:</span> <span className="font-mono">{renderedAt}</span></p>
-          <p className="mt-1 text-blue-700 dark:text-blue-400">
-            ✓ This timestamp updates on every fresh request, proving the page uses dynamic rendering.
+        <div className="mt-2 grid gap-2 text-xs text-[#365b7d] sm:grid-cols-2">
+          <p><span className="font-medium">Account:</span> <span className="font-mono">{userId}</span></p>
+          <p><span className="font-medium">Last refreshed:</span> <span className="font-mono">{renderedAt}</span></p>
+          <p className="sm:col-span-2 text-[#52789b]">
+            Your documents are stored securely in your personal vault.
           </p>
         </div>
       </div>
@@ -61,9 +155,12 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
       {/* Document List */}
       <div className="lg:col-span-2">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold">
+          <div className="flex items-end justify-between gap-4">
+          <h2 className="text-lg font-semibold text-[#132846]">
             Documents ({optimisticDocuments.length})
           </h2>
+          <span className="hidden text-xs font-semibold uppercase tracking-[0.12em] text-[#62738a] sm:block">Your files</span>
+          </div>
           <p className="text-sm text-foreground/75">
             Click a document to view details
           </p>
@@ -74,10 +171,10 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
             <button
               key={document.id}
               onClick={() => setSelectedDocId(document.id)}
-              className={`group rounded-lg border p-4 text-left transition-all ${
+              className={`document-row group rounded-lg border bg-white p-4 text-left transition-all ${
                 selectedDocId === document.id
                   ? "border-foreground bg-foreground/10 dark:bg-foreground/20"
-                  : "border-black/10 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+                  : "border-[#d8e3ef] hover:bg-[#f7fbff]"
               }`}
             >
               <div className="space-y-2">
@@ -102,7 +199,7 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
       {/* Selected Document Details Panel */}
       <div className="lg:col-span-1">
         {selectedDocument ? (
-          <div className="sticky top-4 rounded-lg border border-black/10 p-6 dark:border-white/15">
+          <div className="panel sticky top-4 border-t-2 border-t-[#138808] p-6">
             <div className="mb-4 pb-4 border-b border-black/10 dark:border-white/15">
               <h3 className="text-sm font-medium text-foreground/75">
                 Selected Document
@@ -170,7 +267,7 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
             </div>
           </div>
         ) : (
-          <div className="sticky top-4 rounded-lg border border-black/10 border-dashed p-6 text-center dark:border-white/15">
+          <div className="sticky top-4 rounded-lg border border-dashed border-[#b9d8ef] bg-[#f7fbff] p-6 text-center">
             <p className="text-sm text-foreground/75">
               Select a document to view details
             </p>
@@ -178,6 +275,8 @@ export function DocumentListClient({ documents, userId, renderedAt }) {
         )}
       </div>
     </div>
+      </>
+      )}
     </div>
   );
 }
