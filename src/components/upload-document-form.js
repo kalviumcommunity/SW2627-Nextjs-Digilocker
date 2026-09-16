@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useRef } from "react";
+import { startTransition, useActionState, useEffect, useRef } from "react";
 import { createDocument } from "@/src/app/(vault)/documents/actions";
 import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
 
@@ -14,6 +14,12 @@ export function UploadDocumentForm() {
   const formRef = useRef(null);
 
   const [state, formAction, isPending] = useActionState(createDocument, initialState);
+
+  useEffect(() => {
+    if (state.data && !state.errors) {
+      formRef.current?.reset();
+    }
+  }, [state.data, state.errors]);
 
   const handleSubmit = (event) => {
     const form = event.currentTarget;
@@ -41,7 +47,6 @@ export function UploadDocumentForm() {
       });
     });
 
-    formRef.current?.reset();
   };
 
   return (

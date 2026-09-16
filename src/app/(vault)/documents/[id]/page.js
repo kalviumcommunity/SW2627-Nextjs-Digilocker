@@ -12,9 +12,9 @@ import { ShareLinkSection } from "@/src/components/share-link-section";
 import { OptimisticDocumentProvider } from "@/src/components/optimistic-document-provider";
 import { DocumentDetailsClient } from "@/src/components/document-details-client";
 
-// Document records change through infrequent vault operations. Refresh this
-// individual document route within five minutes without making the vault
-// layout or other document routes dynamic.
+// This page resolves request-specific document IDs and should not reuse stale
+// prerendered values after document creation or updates.
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 /**

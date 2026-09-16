@@ -177,7 +177,7 @@ export async function getDocuments() {
  * Wrapped in React cache() so generateMetadata and DocumentPage share a single
  * data fetch per request during rendering/regeneration without duplicate queries.
  */
-export const getDocumentById = cache(async (id) => {
+export async function getDocumentById(id) {
   if (!id) return null;
   try {
     const doc = await prisma.document.findUnique({
@@ -201,13 +201,13 @@ export const getDocumentById = cache(async (id) => {
     console.warn("Prisma query failed, falling back to mock data", error);
     return documents.find((document) => document.id === id) ?? null;
   }
-});
+}
 
 /**
  * Fetch audit activity logs for a document using Prisma findMany.
  * This is a dependent query requiring a verified document ID.
  */
-export const getDocumentActivity = cache(async (documentId) => {
+export async function getDocumentActivity(documentId) {
   if (!documentId) return [];
   try {
     const activities = await prisma.documentActivity.findMany({
@@ -234,7 +234,7 @@ export const getDocumentActivity = cache(async (documentId) => {
     console.warn("Prisma query failed, falling back to mock data", error);
     return documentActivities[documentId] ?? [];
   }
-});
+}
 
 /**
  * Fetch active share links for a document using Prisma findMany.

@@ -21,10 +21,12 @@ export function EditDocumentForm({ document }) {
     const formData = new FormData(form);
 
     startTransition(() => {
+      const documentId = formData.get("documentId");
       dispatchOptimisticUpdate({
         type: "UPDATE",
-        documentId: formData.get("documentId"),
+        documentId,
         document: {
+          id: documentId,
           title: formData.get("title"),
           type: formData.get("type"),
           description: formData.get("description"),

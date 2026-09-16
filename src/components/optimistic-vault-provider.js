@@ -13,7 +13,7 @@ export function OptimisticVaultProvider({ documents, children }) {
           return [action.document, ...state];
         case "UPDATE":
           return state.map((doc) =>
-            doc.id === action.document.id ? { ...doc, ...action.document } : doc
+            doc.id === action.documentId ? { ...doc, ...action.document } : doc
           );
         case "DELETE":
           return state.filter((doc) => doc.id !== action.documentId);
