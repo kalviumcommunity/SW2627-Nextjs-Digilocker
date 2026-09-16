@@ -113,6 +113,51 @@ export function filterAndSortDocuments(documentsToFilter, query) {
   });
 }
 
+export function normalizePaginationQuery(input = {}) {
+  const page = Number.parseInt(input.page ?? 1, 10);
+  const pageSize = Number.parseInt(input.pageSize ?? input.limit ?? 10, 10);
+
+  return {
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : 10,
+  };
+}
+
+export async function getPaginatedDocuments({
+  userId = "demo-user",
+  page = 1,
+  pageSize = 10,
+  q = "",
+  type = "",
+  sort = "newest",
+} = {}) {
+  const allDocuments = await getDocuments();
+  const scopedDocuments = userId
+    ? allDocuments.filter((document) => !document.userId || document.userId === userId)
+    : allDocuments;
+  const sortedDocuments = filterAndSortDocuments(scopedDocuments, { q, type, sort });
+  const normalizedPage = Number.isFinite(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+  const normalizedPageSize = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0 ? Math.min(Number(pageSize), 100) : 10;
+  const total = sortedDocuments.length;
+  const totalPages = total === 0 ? 1 : Math.ceil(total / normalizedPageSize);
+  const safePage = Math.min(normalizedPage, totalPages);
+  const start = (safePage - 1) * normalizedPageSize;
+  const items = sortedDocuments.slice(start, start + normalizedPageSize);
+
+  return {
+    items,
+    meta: {
+      mode: "offset",
+      page: safePage,
+      pageSize: normalizedPageSize,
+      total,
+      totalPages,
+      hasMore: safePage < totalPages,
+      hasPrevious: safePage > 1,
+    },
+  };
+}
+
 /**
  * Helper to ensure a valid user exists for document foreign key relationships.
  */

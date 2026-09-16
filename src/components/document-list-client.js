@@ -22,7 +22,7 @@ import { useOptimisticVault } from "@/src/components/optimistic-vault-provider";
  * Data comes from the server as serializable props.
  * Client-side React hooks (useState) manage the interactive state.
  */
-export function DocumentListClient({ userId, renderedAt, query }) {
+export function DocumentListClient({ userId, renderedAt, query, pagination }) {
   const { optimisticDocuments } = useOptimisticVault();
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [searchValue, setSearchValue] = useState(query?.q || "");
@@ -39,6 +39,9 @@ export function DocumentListClient({ userId, renderedAt, query }) {
         params.delete(name);
       }
     }
+    if (updates.q || updates.type || updates.sort) {
+      params.delete("page");
+    }
     const queryString = params.toString();
     router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
   }
@@ -50,6 +53,7 @@ export function DocumentListClient({ userId, renderedAt, query }) {
 
   // Find the selected document from the list
   const selectedDocument = optimisticDocuments.find((doc) => doc.id === selectedDocId);
+  const pageMeta = pagination || { page: 1, pageSize: query?.pageSize || 10, totalPages: 1, hasMore: false, hasPrevious: false, total: optimisticDocuments.length };
 
   return (
     <div className="space-y-6">
@@ -157,13 +161,37 @@ export function DocumentListClient({ userId, renderedAt, query }) {
         <div className="mb-4">
           <div className="flex items-end justify-between gap-4">
           <h2 className="text-lg font-semibold text-[#132846]">
-            Documents ({optimisticDocuments.length})
+            Documents ({pageMeta.total})
           </h2>
           <span className="hidden text-xs font-semibold uppercase tracking-[0.12em] text-[#62738a] sm:block">Your files</span>
           </div>
           <p className="text-sm text-foreground/75">
             Click a document to view details
           </p>
+        </div>
+
+        <div className="mb-4 flex items-center justify-between rounded-md border border-[#d8e3ef] bg-[#f7fbff] px-3 py-2 text-sm">
+          <button
+            type="button"
+            onClick={() => updateQuery({ page: String(Math.max(1, pageMeta.page - 1)) })}
+            disabled={!pageMeta.hasPrevious}
+            className="rounded border border-[#c8d8e8] px-3 py-1.5 font-medium disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Previous
+          </button>
+
+          <span className="font-medium text-[#132846]">
+            Page {pageMeta.page} of {pageMeta.totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => updateQuery({ page: String(pageMeta.page + 1) })}
+            disabled={!pageMeta.hasMore}
+            className="rounded border border-[#c8d8e8] px-3 py-1.5 font-medium disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

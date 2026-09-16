@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
-import { filterAndSortDocuments, getDocuments, normalizeDocumentQuery } from "@/src/lib/documents";
+import {
+  getPaginatedDocuments,
+  normalizeDocumentQuery,
+  normalizePaginationQuery,
+} from "@/src/lib/documents";
 import { DocumentList } from "@/src/components/document-list";
 import { DocumentGridSkeleton, VaultHeaderSkeleton } from "@/src/components/skeletons";
 import { UploadDocumentForm } from "@/src/components/upload-document-form";
@@ -24,14 +28,18 @@ import { OptimisticVaultProvider } from "@/src/components/optimistic-vault-provi
 export const dynamic = "force-dynamic";
 
 export default async function DocumentsPage({ searchParams }) {
-  const query = normalizeDocumentQuery(await searchParams);
+  const params = await searchParams;
+  const query = {
+    ...normalizeDocumentQuery(params),
+    ...normalizePaginationQuery(params),
+  };
   // Fetch server-specific request data and documents in parallel
-  const { documents, userId, renderedAt } = await fetchVaultData(query);
+  const { documents, userId, renderedAt, pagination } = await fetchVaultData(query);
   
   return (
     <section className="vault-shell space-y-6 pt-3">
       <Suspense fallback={<VaultHeaderSkeleton />}>
-        <VaultHeader documents={documents} userId={userId} renderedAt={renderedAt} />
+        <VaultHeader documents={documents} userId={userId} renderedAt={renderedAt} pagination={pagination} />
       </Suspense>
 
       <OptimisticVaultProvider documents={documents}>
@@ -45,7 +53,7 @@ export default async function DocumentsPage({ searchParams }) {
         </div>
 
         <Suspense fallback={<DocumentGridSkeleton count={6} />}>
-          <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} query={query} />
+          <VaultDocuments documents={documents} userId={userId} renderedAt={renderedAt} query={query} pagination={pagination} />
         </Suspense>
       </OptimisticVaultProvider>
     </section>
@@ -58,13 +66,14 @@ export default async function DocumentsPage({ searchParams }) {
  * Displays the vault header with title and document count.
  * Receives request-specific data (userId, renderedAt) to demonstrate dynamic rendering.
  */
-function VaultHeader({ documents, userId, renderedAt }) {
+function VaultHeader({ documents, userId, renderedAt, pagination }) {
+  const totalDocuments = pagination?.total ?? documents.length;
   return (
     <div className="space-y-2">
       <p className="eyebrow">My documents</p>
       <h1 className="text-3xl font-semibold tracking-tight">My DigiLocker Vault</h1>
       <p className="text-foreground/75">
-        You have {documents.length} document{documents.length !== 1 ? "s" : ""} securely stored.
+        You have {totalDocuments} document{totalDocuments !== 1 ? "s" : ""} securely stored.
       </p>
       <div className="mt-3 pt-3 border-t border-foreground/10 text-xs text-foreground/60">
         <p>User: <span className="font-mono font-medium text-foreground/70">{userId}</span></p>
@@ -80,8 +89,8 @@ function VaultHeader({ documents, userId, renderedAt }) {
  * Displays the list of vault documents.
  * Passes server-specific request data to DocumentList for display to the client.
  */
-function VaultDocuments({ documents, userId, renderedAt, query }) {
-  return <DocumentList documents={documents} userId={userId} renderedAt={renderedAt} query={query} />;
+function VaultDocuments({ documents, userId, renderedAt, query, pagination }) {
+  return <DocumentList documents={documents} userId={userId} renderedAt={renderedAt} query={query} pagination={pagination} />;
 }
 
 /**
@@ -95,15 +104,23 @@ function VaultDocuments({ documents, userId, renderedAt, query }) {
  */
 async function fetchVaultData(query) {
   // Start independent queries and request data concurrently in parallel
-  const [cookieStore, allDocuments] = await Promise.all([
+  const [cookieStore, pageResult] = await Promise.all([
     cookies(),
-    getDocuments(),
+    getPaginatedDocuments({
+      userId: "demo-user",
+      page: query.page,
+      pageSize: query.pageSize,
+      q: query.q,
+      type: query.type,
+      sort: query.sort,
+    }),
   ]);
-  const documents = filterAndSortDocuments(allDocuments, query);
+  const documents = pageResult.items;
+  const pagination = pageResult.meta;
   
   const userId = cookieStore.get("demo-user")?.value || "demo-user";
   const renderedAt = new Date().toISOString();
 
-  return { documents, userId, renderedAt };
+  return { documents, userId, renderedAt, pagination };
 }
 

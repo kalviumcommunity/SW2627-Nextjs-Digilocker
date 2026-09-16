@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getDocumentById, getDocuments } from "../src/lib/documents.js";
+import {
+  getDocumentById,
+  getDocuments,
+  getPaginatedDocuments,
+} from "../src/lib/documents.js";
 import {
   completeUploadSchema,
   createShareLinkSchema,
@@ -24,6 +28,10 @@ test("API payload validation (LU-2.27)", async (t) => {
       true
     );
     assert.deepEqual(documentQuerySchema.parse({ limit: "25" }), { limit: 25 });
+    assert.deepEqual(documentQuerySchema.parse({ page: "2", pageSize: "8" }), {
+      page: 2,
+      pageSize: 8,
+    });
   });
 
   await t.test("rejects unsafe upload payloads and unknown fields", () => {
@@ -151,6 +159,17 @@ test("Document Metadata & Revalidation Strategy (LU-2.23)", async (t) => {
     assert.ok(docs.some((d) => d.id === "identity-proof"));
     assert.ok(docs.some((d) => d.id === "degree-certificate"));
     assert.ok(docs.some((d) => d.id === "insurance-policy"));
+  });
+
+  await t.test("getPaginatedDocuments returns offset pagination metadata and slices the list", async () => {
+    const page = await getPaginatedDocuments({ userId: "demo-user", page: 1, pageSize: 2 });
+
+    assert.equal(page.meta.mode, "offset");
+    assert.equal(page.meta.page, 1);
+    assert.equal(page.meta.pageSize, 2);
+    assert.ok(Array.isArray(page.items));
+    assert.ok(page.items.length <= 2);
+    assert.equal(typeof page.meta.hasMore, "boolean");
   });
 
   await t.test("getDocumentById returns consistent metadata structure for all documents", async () => {
