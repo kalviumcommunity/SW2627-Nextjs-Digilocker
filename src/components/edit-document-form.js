@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { startTransition, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { updateDocument } from "@/src/app/(vault)/documents/actions";
 import { useOptimisticDocument } from "@/src/components/optimistic-document-provider";
@@ -13,26 +13,29 @@ const initialState = {
 export function EditDocumentForm({ document }) {
   const { dispatchOptimisticUpdate } = useOptimisticDocument();
   const router = useRouter();
-  
-  const [state, formAction, isPending] = useActionState(
-    async (prevState, formData) => {
+
+  const [state, formAction, isPending] = useActionState(updateDocument, initialState);
+
+  const handleSubmit = (event) => {
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    startTransition(() => {
+      const documentId = formData.get("documentId");
       dispatchOptimisticUpdate({
         type: "UPDATE",
-        documentId: formData.get("documentId"),
+        documentId,
         document: {
+          id: documentId,
           title: formData.get("title"),
           type: formData.get("type"),
           description: formData.get("description"),
         },
       });
+    });
 
-      const result = await updateDocument(prevState, formData);
-
-      router.refresh();
-      return result;
-    },
-    initialState
-  );
+    router.refresh();
+  };
 
   return (
     <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
@@ -56,7 +59,7 @@ export function EditDocumentForm({ document }) {
         </div>
       )}
 
-      <form action={formAction} aria-busy={isPending} className="space-y-4">
+      <form action={formAction} onSubmit={handleSubmit} aria-busy={isPending} className="space-y-4">
         {isPending && (
           <p role="status" aria-live="polite" className="text-xs text-foreground/60">
             Saving document metadata...

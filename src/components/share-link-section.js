@@ -12,10 +12,7 @@ const initialState = {
 };
 
 function RevokeShareButton({ documentId, linkId }) {
-  const [state, formAction, isPending] = useActionState(
-    revokeShareLink,
-    initialState
-  );
+  const [state, formAction, isPending] = useActionState(revokeShareLink, initialState);
 
   return (
     <form action={formAction} className="inline-flex items-center gap-2">
@@ -38,10 +35,7 @@ function RevokeShareButton({ documentId, linkId }) {
 }
 
 export function ShareLinkSection({ documentId, shareLinks = [] }) {
-  const [createState, createAction, isCreating] = useActionState(
-    createShareLink,
-    initialState
-  );
+  const [createState, createAction, isCreating] = useActionState(createShareLink, initialState);
 
   return (
     <div className="rounded-lg border border-black/10 p-6 dark:border-white/15 space-y-4">

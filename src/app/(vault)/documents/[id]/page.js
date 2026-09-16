@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import {
   getDocumentById,
   getDocuments,
@@ -11,9 +12,9 @@ import { ShareLinkSection } from "@/src/components/share-link-section";
 import { OptimisticDocumentProvider } from "@/src/components/optimistic-document-provider";
 import { DocumentDetailsClient } from "@/src/components/document-details-client";
 
-// Document records change through infrequent vault operations. Refresh this
-// individual document route within five minutes without making the vault
-// layout or other document routes dynamic.
+// This page resolves request-specific document IDs and should not reuse stale
+// prerendered values after document creation or updates.
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 /**
@@ -86,28 +87,7 @@ export default async function DocumentPage({ params }) {
 
   // 2. Handle missing document gracefully before attempting dependent queries
   if (!document) {
-    return (
-      <div className="space-y-6">
-        <Link
-          href="/documents"
-          className="inline-flex items-center gap-2 text-sm font-medium text-foreground/75 hover:text-foreground transition-colors"
-        >
-          ← Back to Documents
-        </Link>
-        <div className="rounded-lg border border-black/10 p-8 text-center dark:border-white/15">
-          <h1 className="text-2xl font-semibold mb-2">Document Not Found</h1>
-          <p className="text-foreground/75">
-            The document you&apos;re looking for doesn&apos;t exist or has been removed.
-          </p>
-          <Link
-            href="/documents"
-            className="mt-4 inline-block rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            Return to Vault
-          </Link>
-        </div>
-      </div>
-    );
+    notFound();
   }
 
   // 3. Dependent queries: execute concurrently in parallel once parent document is verified
