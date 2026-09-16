@@ -9,10 +9,7 @@ const initialState = {
 };
 
 export function DeleteDocumentButton({ documentId }) {
-  const [state, formAction, isPending] = useActionState(
-    deleteDocument,
-    initialState
-  );
+  const [state, formAction, isPending] = useActionState(deleteDocument, initialState);
 
   return (
     <div className="space-y-2">
