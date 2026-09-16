@@ -25,7 +25,9 @@ const fileSize = z.number().int().positive().max(MAX_FILE_SIZE_BYTES);
 export const documentQuerySchema = z
   .object({
     cursor: z.string().trim().min(1).max(512).optional(),
-    limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(10),
+    limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
   })
   .strict();
 
