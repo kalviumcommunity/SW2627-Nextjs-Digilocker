@@ -8,6 +8,7 @@ import {
 } from "../../../../lib/api-validation.js";
 import { createDocument } from "../../../../lib/documents.js";
 import { getCurrentUser } from "../../../../lib/auth.js";
+import { createTraceId, getTraceId, logger, withTraceId } from "../../../../lib/logger.js";
 import {
   detectDocumentType,
   extractTitleFromFileName,
@@ -21,61 +22,67 @@ import {
  * Revalidates vault paths and returns the created document.
  */
 export async function POST(request) {
-  const parsed = await parseRequestBody(request, completeUploadSchema);
-  if (!parsed.success) {
-    return parsed.response;
-  }
+  const traceId = getTraceId() || createTraceId();
 
-  const { objectKey, fileName, contentType, fileSize, documentId } = parsed.data;
-
-  // Determine user identity
-  let userId = "demo-user";
-  try {
-    if (process.env.NEXT_PUBLIC_AUTH_ENABLED === "true") {
-      const user = await getCurrentUser();
-      if (user?.id) {
-        userId = user.id;
-      }
-    } else {
-      const cookieStore = await cookies();
-      const cookieUser = cookieStore?.get?.("demo-user")?.value;
-      if (cookieUser) {
-        userId = cookieUser;
-      }
+  return withTraceId(traceId, async () => {
+    const parsed = await parseRequestBody(request, completeUploadSchema);
+    if (!parsed.success) {
+      logger.warn({ action: "document.upload_validation_failed", traceId, route: "/api/upload/complete" }, "Upload validation failed");
+      return parsed.response;
     }
-  } catch {
-    userId = "demo-user";
-  }
 
-  const type = detectDocumentType(fileName, contentType) || "PDF";
-  const title = extractTitleFromFileName(fileName) || "Uploaded Document";
-  const formattedSize = formatFileSize(fileSize);
+    const { objectKey, fileName, contentType, fileSize, documentId } = parsed.data;
 
-  try {
-    const document = await createDocument({
-      ...(documentId ? { id: documentId } : {}),
-      title,
-      description: `Verified ${type} document uploaded to secure vault.`,
-      type,
-      size: formattedSize,
-      fileKey: objectKey,
-      fileUrl: objectKey,
-      mimeType: contentType,
-      fileSizeBytes: fileSize,
-      userId,
-    });
+    // Determine user identity
+    let userId = "demo-user";
+    try {
+      if (process.env.NEXT_PUBLIC_AUTH_ENABLED === "true") {
+        const user = await getCurrentUser();
+        if (user?.id) {
+          userId = user.id;
+        }
+      } else {
+        const cookieStore = await cookies();
+        const cookieUser = cookieStore?.get?.("demo-user")?.value;
+        if (cookieUser) {
+          userId = cookieUser;
+        }
+      }
+    } catch {
+      userId = "demo-user";
+    }
+
+    const type = detectDocumentType(fileName, contentType) || "PDF";
+    const title = extractTitleFromFileName(fileName) || "Uploaded Document";
+    const formattedSize = formatFileSize(fileSize);
 
     try {
-      revalidatePath("/documents");
-      revalidatePath("/dashboard");
-      revalidatePath(`/documents/${document.id}`);
-    } catch {
-      // Graceful no-op in non-Next request contexts
-    }
+      const document = await createDocument({
+        ...(documentId ? { id: documentId } : {}),
+        title,
+        description: `Verified ${type} document uploaded to secure vault.`,
+        type,
+        size: formattedSize,
+        fileKey: objectKey,
+        fileUrl: objectKey,
+        mimeType: contentType,
+        fileSizeBytes: fileSize,
+        userId,
+      });
 
-    return successResponse({ document }, 201);
-  } catch (error) {
-    console.error("Failed to complete upload:", error);
-    return errorResponse("Failed to complete document upload", 500);
-  }
+      try {
+        revalidatePath("/documents");
+        revalidatePath("/dashboard");
+        revalidatePath(`/documents/${document.id}`);
+      } catch {
+        // Graceful no-op in non-Next request contexts
+      }
+
+      logger.info({ action: "document.upload", traceId, userId, documentId: document.id }, "Document upload completed");
+      return successResponse({ document }, 201);
+    } catch (error) {
+      logger.error({ action: "document.upload_failed", traceId, userId, err: error }, "Document upload failed");
+      return errorResponse("Failed to complete document upload", 500);
+    }
+  });
 }

@@ -260,15 +260,16 @@ export const env = {
 /**
  * Validate environment at startup (call in entry point if needed)
  */
+import { logger } from "./logger.js";
+
 export function validateEnvironment() {
   const errors = env.validate();
   if (errors.length > 0) {
-    console.error("❌ Environment validation failed:");
-    errors.forEach(error => console.error(`  - ${error}`));
+    logger.error({ action: "config.validate", errors }, "Environment validation failed");
     if (process.env.NODE_ENV === "production") {
       throw new Error("Environment validation failed. See logs for details.");
     }
   } else {
-    console.log("✅ Environment validated successfully");
+    logger.info({ action: "config.validate" }, "Environment validated successfully");
   }
 }

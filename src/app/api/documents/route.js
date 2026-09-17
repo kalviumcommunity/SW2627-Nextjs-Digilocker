@@ -1,49 +1,63 @@
 import { revalidatePath } from "next/cache";
 import { createDocument, getDocuments } from "@/src/lib/documents";
 import { errorResponse, successResponse } from "@/src/lib/api-validation";
+import { createTraceId, getTraceId, logger, withTraceId } from "@/src/lib/logger";
 
 export async function GET() {
-  try {
-    const documents = await getDocuments();
-
-    return successResponse({ documents });
-  } catch {
-    return errorResponse("Failed to fetch documents", 500);
-  }
+  const traceId = getTraceId() || createTraceId();
+  return withTraceId(traceId, async () => {
+    try {
+      const documents = await getDocuments();
+      logger.info({ action: "document.list", traceId, count: documents.length }, "Documents listed");
+      return successResponse({ documents });
+    } catch (error) {
+      logger.error({ action: "document.list_failed", traceId, err: error }, "Document list failed");
+      return errorResponse("Failed to fetch documents", 500);
+    }
+  });
 }
 
 export async function POST(request) {
-  let body;
+  const traceId = getTraceId() || createTraceId();
 
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body", 400);
-  }
+  return withTraceId(traceId, async () => {
+    let body;
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return errorResponse("Request body is required", 400);
-  }
+    try {
+      body = await request.json();
+    } catch (error) {
+      logger.warn({ action: "document.create_validation_failed", traceId, err: error }, "Document create request body was invalid");
+      return errorResponse("Invalid JSON body", 400);
+    }
 
-  if (typeof body.title !== "string" || body.title.trim() === "") {
-    return errorResponse("The title field is required", 400);
-  }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      logger.warn({ action: "document.create_validation_failed", traceId }, "Document create request body missing");
+      return errorResponse("Request body is required", 400);
+    }
 
-  try {
-    const document = await createDocument({
-      title: body.title.trim(),
-      description: typeof body.description === "string" ? body.description : "",
-      issuedOn: typeof body.issuedOn === "string" ? body.issuedOn : new Date().toISOString(),
-      type: typeof body.type === "string" ? body.type : "",
-      size: typeof body.size === "string" ? body.size : "",
-    });
+    if (typeof body.title !== "string" || body.title.trim() === "") {
+      logger.warn({ action: "document.create_validation_failed", traceId }, "Document create request missing title");
+      return errorResponse("The title field is required", 400);
+    }
 
-    revalidatePath("/documents");
-    revalidatePath("/dashboard");
-    revalidatePath(`/documents/${document.id}`);
+    try {
+      const document = await createDocument({
+        title: body.title.trim(),
+        description: typeof body.description === "string" ? body.description : "",
+        issuedOn: typeof body.issuedOn === "string" ? body.issuedOn : new Date().toISOString(),
+        type: typeof body.type === "string" ? body.type : "",
+        size: typeof body.size === "string" ? body.size : "",
+      });
 
-    return successResponse({ document }, 201);
-  } catch {
-    return errorResponse("Failed to create document", 500);
-  }
+      revalidatePath("/documents");
+      revalidatePath("/dashboard");
+      revalidatePath(`/documents/${document.id}`);
+
+      logger.info({ action: "document.create", traceId, documentId: document.id }, "Document created");
+      return successResponse({ document }, 201);
+    } catch (error) {
+      logger.error({ action: "document.create_failed", traceId, err: error }, "Document create failed");
+      return errorResponse("Failed to create document", 500);
+    }
+  });
 }

@@ -1,5 +1,6 @@
 import { cache } from "react";
 import prisma from "./prisma.js";
+import { createTraceId, getTraceId, logger } from "./logger.js";
 
 // =============================================================================
 // MOCK DATA - Used as fallback for development/testing
@@ -217,7 +218,7 @@ export async function getDocuments() {
 
     return merged;
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), err: error }, "Prisma query failed, falling back to mock data");
     return documents;
   }
 }
@@ -253,7 +254,7 @@ export async function getDocumentById(id) {
     }
     return documents.find((document) => document.id === id) ?? null;
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId: id, err: error }, "Prisma query failed, falling back to mock data");
     return documents.find((document) => document.id === id) ?? null;
   }
 }
@@ -286,7 +287,7 @@ export async function getDocumentActivity(documentId) {
     }
     return documentActivities[documentId] ?? [];
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId, err: error }, "Prisma query failed, falling back to mock data");
     return documentActivities[documentId] ?? [];
   }
 }
@@ -320,7 +321,7 @@ export const getDocumentShareLinks = cache(async (documentId) => {
     }
     return documentShareLinks[documentId] ?? [];
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId, err: error }, "Prisma query failed, falling back to mock data");
     return documentShareLinks[documentId] ?? [];
   }
 });
@@ -340,7 +341,7 @@ export const getVaultStats = cache(async () => {
       storageQuotaMB: 100,
     };
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), err: error }, "Prisma query failed, falling back to mock data");
     const mockDocs = documents.length;
     const mockCategories = new Set(documents.map((d) => d.type)).size;
     return {
@@ -400,7 +401,7 @@ export async function addDocumentActivity(documentId, action, userId) {
       };
     }
   } catch (error) {
-    console.warn("Prisma activity creation failed, using in-memory store", error);
+    logger.warn({ action: "data.activity_create_fallback", traceId: getTraceId() || createTraceId(), documentId, userId, err: error }, "Prisma activity creation failed, using in-memory store");
   }
 
   return fallbackActivity;
@@ -511,7 +512,7 @@ export async function createDocument(documentData) {
       userId: result.userId,
     };
   } catch (error) {
-    console.warn("Prisma document creation failed, using mock data", error);
+    logger.warn({ action: "document.create_fallback", traceId: getTraceId() || createTraceId(), documentId: newDoc.id, userId: documentData?.userId, err: error }, "Prisma document creation failed, using mock data");
     await addDocumentActivity(newDoc.id, "Uploaded to vault");
     return newDoc;
   }
@@ -583,7 +584,7 @@ export async function updateDocument(id, updates) {
       };
     }
   } catch (error) {
-    console.warn("Prisma document update failed, using mock data", error);
+    logger.warn({ action: "document.update_fallback", traceId: getTraceId() || createTraceId(), documentId: id, err: error }, "Prisma document update failed, using mock data");
   }
 
   if (updatedDoc) {
@@ -614,7 +615,7 @@ export async function deleteDocument(id) {
       return true;
     }
   } catch (error) {
-    console.warn("Prisma document deletion failed, using mock state", error);
+    logger.warn({ action: "document.delete_fallback", traceId: getTraceId() || createTraceId(), documentId: id, err: error }, "Prisma document deletion failed, using mock state");
   }
 
   return found;
@@ -686,7 +687,7 @@ export async function createShareLink(documentId, { expiresInMinutes = 60 } = {}
       };
     }
   } catch (error) {
-    console.warn("Prisma createShareLink failed, using mock data", error);
+    logger.warn({ action: "document.share_link_fallback", traceId: getTraceId() || createTraceId(), documentId, err: error }, "Prisma createShareLink failed, using mock data");
   }
 
   if (document) {
@@ -726,7 +727,7 @@ export const getDocumentsWithUser = cache(async () => {
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), err: error }, "Prisma query failed, falling back to mock data");
     return documents;
   }
 });
@@ -769,7 +770,7 @@ export const getDocumentsByUser = cache(async (userId) => {
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), userId, err: error }, "Prisma query failed, falling back to mock data");
     return documents;
   }
 });
@@ -826,7 +827,7 @@ export const getDocumentWithRelations = cache(async (id) => {
       },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId: id, err: error }, "Prisma query failed, falling back to mock data");
     return getDocumentById(id);
   }
 });
@@ -868,7 +869,7 @@ export const getDocumentWithUser = cache(async (id) => {
       },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId: id, err: error }, "Prisma query failed, falling back to mock data");
     return getDocumentById(id);
   }
 });
@@ -900,7 +901,7 @@ export const getUserDocumentsSummary = cache(async (userId) => {
       take: 50, // Limit for performance
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), userId, err: error }, "Prisma query failed, falling back to mock data");
     return documents.slice(0, 50);
   }
 });
@@ -936,7 +937,7 @@ export const getUserDocumentsWithStats = cache(async (userId) => {
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), userId, err: error }, "Prisma query failed, falling back to mock data");
     return documents.map((doc) => ({
       id: doc.id,
       title: doc.title,
@@ -978,7 +979,7 @@ export const getDocumentActivitiesWithUser = cache(async (documentId) => {
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId, err: error }, "Prisma query failed, falling back to mock data");
     return documentActivities[documentId] ?? [];
   }
 });
@@ -1008,7 +1009,7 @@ export const getDocumentShareLinksWithDetails = cache(async (documentId) => {
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {
-    console.warn("Prisma query failed, falling back to mock data", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), documentId, err: error }, "Prisma query failed, falling back to mock data");
     return documentShareLinks[documentId] ?? [];
   }
 });
@@ -1052,7 +1053,7 @@ export const getUserWithDocuments = cache(async (userId) => {
       },
     });
   } catch (error) {
-    console.warn("Prisma query failed for user with documents", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), userId, err: error }, "Prisma query failed for user with documents");
     return null;
   }
 });
@@ -1089,7 +1090,7 @@ export const getSharedDocumentByToken = cache(async (shareToken) => {
 
     return shareLink?.document ?? null;
   } catch (error) {
-    console.warn("Prisma query failed for shared document", error);
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), shareToken, err: error }, "Prisma query failed for shared document");
     return null;
   }
 });
@@ -1119,7 +1120,7 @@ export async function deleteShareLink(documentId, linkId) {
       return true;
     }
   } catch (error) {
-    console.warn("Prisma deleteShareLink failed, using mock state", error);
+    logger.warn({ action: "document.share_link_delete_fallback", traceId: getTraceId() || createTraceId(), documentId, linkId, err: error }, "Prisma deleteShareLink failed, using mock state");
   }
 
   if (found) {
