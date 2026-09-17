@@ -1,6 +1,6 @@
 import { requireRole } from "@/src/lib/auth";
 import { getDocuments, getVaultStats } from "@/src/lib/documents";
-import { errorResponse, successResponse } from "@/src/lib/api-validation";
+import { API_ERROR_CODES, errorResponse, successResponse } from "@/src/lib/api-validation";
 
 export async function GET() {
   try {
@@ -23,7 +23,14 @@ export async function GET() {
       },
     });
   } catch (err) {
-    const statusCode = err?.statusCode || (err?.message?.includes("Unauthorized") ? 401 : 403);
-    return errorResponse(err?.message || "Forbidden: Access denied.", statusCode);
+    const status = err?.statusCode === 401 || err?.statusCode === 403 ? err.statusCode : 500;
+    const code = status === 401 ? API_ERROR_CODES.UNAUTHORIZED :
+      status === 403 ? API_ERROR_CODES.FORBIDDEN : API_ERROR_CODES.INTERNAL_SERVER_ERROR;
+    const message = status === 401
+      ? "Authentication required"
+      : status === 403
+        ? "You do not have permission to perform this action"
+        : "Unable to fetch admin data";
+    return errorResponse({ code, message, status });
   }
 }

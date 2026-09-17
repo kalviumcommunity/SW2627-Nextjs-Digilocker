@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { createDocument, getDocuments } from "@/src/lib/documents";
-import { errorResponse, successResponse } from "@/src/lib/api-validation";
+import { API_ERROR_CODES, errorResponse, successResponse } from "@/src/lib/api-validation";
 import { createTraceId, getTraceId, logger, withTraceId } from "@/src/lib/logger";
 
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
       return successResponse({ documents });
     } catch (error) {
       logger.error({ action: "document.list_failed", traceId, err: error }, "Document list failed");
-      return errorResponse("Failed to fetch documents", 500);
+      return errorResponse({ code: API_ERROR_CODES.DATABASE_ERROR, message: "Unable to fetch documents", status: 500 });
     }
   });
 }
@@ -27,17 +27,17 @@ export async function POST(request) {
       body = await request.json();
     } catch (error) {
       logger.warn({ action: "document.create_validation_failed", traceId, err: error }, "Document create request body was invalid");
-      return errorResponse("Invalid JSON body", 400);
+      return errorResponse({ code: API_ERROR_CODES.VALIDATION_ERROR, message: "Invalid JSON body", status: 400 });
     }
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       logger.warn({ action: "document.create_validation_failed", traceId }, "Document create request body missing");
-      return errorResponse("Request body is required", 400);
+      return errorResponse({ code: API_ERROR_CODES.VALIDATION_ERROR, message: "Request body is required", status: 400 });
     }
 
     if (typeof body.title !== "string" || body.title.trim() === "") {
       logger.warn({ action: "document.create_validation_failed", traceId }, "Document create request missing title");
-      return errorResponse("The title field is required", 400);
+      return errorResponse({ code: API_ERROR_CODES.VALIDATION_ERROR, message: "The title field is required", status: 400 });
     }
 
     try {
@@ -57,7 +57,7 @@ export async function POST(request) {
       return successResponse({ document }, 201);
     } catch (error) {
       logger.error({ action: "document.create_failed", traceId, err: error }, "Document create failed");
-      return errorResponse("Failed to create document", 500);
+      return errorResponse({ code: API_ERROR_CODES.DATABASE_ERROR, message: "Unable to create document", status: 500 });
     }
   });
 }

@@ -201,11 +201,11 @@ test("Validated Document File Upload Flow (LU-2.46)", async (t) => {
 
     const body = await response.json();
     assert.strictEqual(body.success, true);
-    assert.ok(body.uploadUrl, "Response must include direct upload URL");
-    assert.ok(body.objectKey, "Response must include unique objectKey");
-    assert.match(body.objectKey, /^uploads\//, "Object key must be scoped to uploads/");
-    assert.strictEqual(body.expiresIn, 900, "Pre-signed URL expiry must be 15 minutes (900s)");
-    assert.strictEqual(body.method, "PUT");
+    assert.ok(body.data.uploadUrl, "Response must include direct upload URL");
+    assert.ok(body.data.objectKey, "Response must include unique objectKey");
+    assert.match(body.data.objectKey, /^uploads\//, "Object key must be scoped to uploads/");
+    assert.strictEqual(body.data.expiresIn, 900, "Pre-signed URL expiry must be 15 minutes (900s)");
+    assert.strictEqual(body.data.method, "PUT");
   });
 
   await t.test("POST /api/upload/presign: rejects oversized payloads with 400", async () => {
@@ -218,11 +218,11 @@ test("Validated Document File Upload Flow (LU-2.46)", async (t) => {
     };
 
     const response = await handlePresign(oversizedRequest);
-    assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.status, 413);
 
     const body = await response.json();
     assert.strictEqual(body.success, false);
-    assert.strictEqual(body.error, "Invalid request payload");
+    assert.strictEqual(body.error.code, "FILE_TOO_LARGE");
   });
 
   await t.test("POST /api/upload/presign: rejects unsupported content types with 400", async () => {
@@ -235,9 +235,10 @@ test("Validated Document File Upload Flow (LU-2.46)", async (t) => {
     };
 
     const response = await handlePresign(invalidTypeRequest);
-    assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.status, 415);
     const body = await response.json();
     assert.strictEqual(body.success, false);
+    assert.strictEqual(body.error.code, "INVALID_FILE_TYPE");
   });
 
   await t.test("POST /api/upload/complete: finalizes upload and persists document with storage metadata", async () => {
@@ -259,9 +260,9 @@ test("Validated Document File Upload Flow (LU-2.46)", async (t) => {
 
     const body = await response.json();
     assert.strictEqual(body.success, true);
-    assert.ok(body.document);
-    assert.strictEqual(body.document.type, "PDF");
-    assert.strictEqual(body.document.fileKey, objectKey);
+    assert.ok(body.data.document);
+    assert.strictEqual(body.data.document.type, "PDF");
+    assert.strictEqual(body.data.document.fileKey, objectKey);
 
     // Verify document can be retrieved from vault
     const retrieved = await getDocumentById(uniqueDocId);
