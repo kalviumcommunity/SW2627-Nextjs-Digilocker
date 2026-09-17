@@ -170,15 +170,30 @@ export function formatValidationErrors(error) {
   }));
 }
 
-export function successResponse(data, status = 200) {
-  return Response.json({ success: true, ...data }, { status });
+import { getTraceId } from "./logger.js";
+import { applySecurityHeaders } from "./headers.js";
+
+export function successResponse(data, status = 200, customHeaders = {}) {
+  const response = Response.json({ success: true, ...data }, { status, headers: customHeaders });
+  const traceId = getTraceId();
+  if (traceId) {
+    response.headers.set("x-trace-id", traceId);
+  }
+  applySecurityHeaders(response, { noCache: true });
+  return response;
 }
 
-export function errorResponse(error, status, details = []) {
-  return Response.json(
+export function errorResponse(error, status, details = [], customHeaders = {}) {
+  const response = Response.json(
     { success: false, error, details },
-    { status }
+    { status, headers: customHeaders }
   );
+  const traceId = getTraceId();
+  if (traceId) {
+    response.headers.set("x-trace-id", traceId);
+  }
+  applySecurityHeaders(response, { noCache: true });
+  return response;
 }
 
 export async function parseRequestBody(request, schema) {

@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers.js";
 import { env } from "./env.js";
+import { getDefaultCookieOptions } from "./cookies.js";
 import { createTraceId, getTraceId, logger } from "./logger.js";
 
 const SESSION_COOKIE = "digilocker-session";
@@ -225,11 +226,7 @@ export function getSessionCookieName() {
 }
 
 export function getSessionCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+  return getDefaultCookieOptions({
     maxAge: env.AUTH_SESSION_EXPIRY_SECONDS,
-  };
+  });
 }
