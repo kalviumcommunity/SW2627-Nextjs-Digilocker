@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers.js";
 import { env } from "./env.js";
+import { createTraceId, getTraceId, logger } from "./logger.js";
 
 const SESSION_COOKIE = "digilocker-session";
 const BCRYPT_ROUNDS = 12;
@@ -91,6 +92,7 @@ export async function createUser({ email, password, name }) {
     role: "user", // Least privilege: new accounts always default to "user", ignoring any client-supplied role
   };
   usersByEmail.set(user.email, user);
+  logger.info({ action: "auth.register", traceId: getTraceId() || createTraceId(), userId: user.id, email: user.email }, "User registered");
   return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
@@ -100,8 +102,10 @@ export async function authenticateUser({ email, password }) {
   const passwordHash = user?.passwordHash || "$2b$12$ invalid-password-hash";
   const passwordMatches = await bcrypt.compare(credentials.password, passwordHash);
   if (!user || !passwordMatches) {
+    logger.warn({ action: "auth.login_failed", traceId: getTraceId() || createTraceId(), email: credentials.email }, "Authentication failed");
     throw new Error("Invalid email or password.");
   }
+  logger.info({ action: "auth.login", traceId: getTraceId() || createTraceId(), userId: user.id, email: user.email }, "User authenticated");
   return { id: user.id, email: user.email, name: user.name, role: user.role || "user" };
 }
 
@@ -166,11 +170,13 @@ export function hasRole(userOrRole, requiredRole) {
 export async function requireRole(requiredRole) {
   const user = await getCurrentUser();
   if (!user) {
+    logger.warn({ action: "auth.authorization_failed", traceId: getTraceId() || createTraceId(), requiredRole }, "Authentication required for privileged action");
     const error = new Error("Unauthorized: Authentication required.");
     error.statusCode = 401;
     throw error;
   }
   if (user.role !== requiredRole) {
+    logger.warn({ action: "auth.authorization_failed", traceId: getTraceId() || createTraceId(), userId: user.id, role: user.role, requiredRole }, "User role does not satisfy required access");
     const error = new Error(`Forbidden: Access denied. Required role: ${requiredRole}.`);
     error.statusCode = 403;
     throw error;
