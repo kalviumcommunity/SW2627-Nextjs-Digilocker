@@ -50,13 +50,6 @@ export function UploadDocumentForm() {
   const [directUploadError, setDirectUploadError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Clear form on server action success
-  useEffect(() => {
-    if (state.data && !state.errors) {
-      resetFormState();
-    }
-  }, [state.data, state.errors]);
-
   const resetFormState = () => {
     formRef.current?.reset();
     setSelectedFile(null);
@@ -70,6 +63,15 @@ export function UploadDocumentForm() {
     setUploadStage("idle");
     setDirectUploadError(null);
   };
+
+  // Clear form on server action success
+  useEffect(() => {
+    if (state.data && !state.errors) {
+      // The server action has completed; reset local form state as a single transition.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      resetFormState();
+    }
+  }, [state.data, state.errors]);
 
   /**
    * Client-side file pre-flight validation.
@@ -188,11 +190,11 @@ export function UploadDocumentForm() {
 
       if (!presignRes.ok) {
         const errorData = await presignRes.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to generate cloud upload authorization.");
+        throw new Error(errorData.error?.message || "Failed to generate cloud upload authorization.");
       }
 
       const presignData = await presignRes.json();
-      const { uploadUrl, objectKey } = presignData;
+      const { uploadUrl, objectKey } = presignData.data;
 
       setUploadStage("uploading");
       setUploadProgress(45);
@@ -227,7 +229,7 @@ export function UploadDocumentForm() {
 
       if (!completeRes.ok) {
         const errData = await completeRes.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to record uploaded document metadata.");
+        throw new Error(errData.error?.message || "Failed to record uploaded document metadata.");
       }
 
       const completeData = await completeRes.json();

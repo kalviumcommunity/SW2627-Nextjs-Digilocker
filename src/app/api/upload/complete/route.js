@@ -3,6 +3,7 @@ import { getCookieValue } from "../../../../lib/cookies.js";
 import { getRequestTraceId } from "../../../../lib/headers.js";
 import {
   completeUploadSchema,
+  API_ERROR_CODES,
   parseRequestBody,
   successResponse,
   errorResponse,
@@ -82,7 +83,7 @@ export async function POST(request) {
       return successResponse({ document }, 201);
     } catch (error) {
       logger.error({ action: "document.upload_failed", traceId, userId, err: error }, "Document upload failed");
-      return errorResponse("Failed to complete document upload", 500);
+      return errorResponse({ code: API_ERROR_CODES.UPLOAD_FAILED, message: "Unable to complete document upload", status: 500 });
     }
   });
 }

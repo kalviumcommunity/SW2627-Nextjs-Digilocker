@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+  API_ERROR_CODES,
+  errorResponse,
+  formatValidationDetails,
+  getValidationErrorResponse,
+  successResponse,
+} from "./api/index.js";
+
+export { API_ERROR_CODES, errorResponse, formatValidationDetails, successResponse };
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_PAGE_SIZE = 100;
@@ -169,33 +178,6 @@ export function formatValidationErrors(error) {
     message,
   }));
 }
-
-import { getTraceId } from "./logger.js";
-import { applySecurityHeaders } from "./headers.js";
-
-export function successResponse(data, status = 200, customHeaders = {}) {
-  const response = Response.json({ success: true, ...data }, { status, headers: customHeaders });
-  const traceId = getTraceId();
-  if (traceId) {
-    response.headers.set("x-trace-id", traceId);
-  }
-  applySecurityHeaders(response, { noCache: true });
-  return response;
-}
-
-export function errorResponse(error, status, details = [], customHeaders = {}) {
-  const response = Response.json(
-    { success: false, error, details },
-    { status, headers: customHeaders }
-  );
-  const traceId = getTraceId();
-  if (traceId) {
-    response.headers.set("x-trace-id", traceId);
-  }
-  applySecurityHeaders(response, { noCache: true });
-  return response;
-}
-
 export async function parseRequestBody(request, schema) {
   let body;
 
@@ -204,7 +186,11 @@ export async function parseRequestBody(request, schema) {
   } catch {
     return {
       success: false,
-      response: errorResponse("Invalid JSON payload", 400),
+      response: errorResponse({
+        code: API_ERROR_CODES.VALIDATION_ERROR,
+        message: "Invalid JSON payload",
+        status: 400,
+      }),
     };
   }
 
@@ -212,11 +198,7 @@ export async function parseRequestBody(request, schema) {
   if (!result.success) {
     return {
       success: false,
-      response: errorResponse(
-        "Invalid request payload",
-        400,
-        formatValidationErrors(result.error)
-      ),
+      response: getValidationErrorResponse(result.error, body),
     };
   }
 

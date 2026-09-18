@@ -80,8 +80,10 @@ test("API payload validation (LU-2.27)", async (t) => {
     assert.equal(result.response.status, 400);
     assert.deepEqual(await result.response.json(), {
       success: false,
-      error: "Invalid JSON payload",
-      details: [],
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Invalid JSON payload",
+      },
     });
   });
 
@@ -90,17 +92,23 @@ test("API payload validation (LU-2.27)", async (t) => {
     assert.equal(success.status, 200);
     assert.deepEqual(await success.json(), {
       success: true,
-      documents: [],
+      data: { documents: [] },
     });
 
-    const error = errorResponse("Invalid request payload", 400, [
-      { path: "title", message: "Required" },
-    ]);
+    const error = errorResponse({
+      code: "VALIDATION_ERROR",
+      message: "Invalid request data",
+      status: 400,
+      details: { title: ["Required"] },
+    });
     assert.equal(error.status, 400);
     assert.deepEqual(await error.json(), {
       success: false,
-      error: "Invalid request payload",
-      details: [{ path: "title", message: "Required" }],
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Invalid request data",
+        details: { title: ["Required"] },
+      },
     });
   });
 });
