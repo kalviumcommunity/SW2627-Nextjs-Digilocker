@@ -47,7 +47,8 @@ export async function generateMetadata({ params }) {
 
   if (!document) {
     return {
-      title: "Document Not Found | DigiLocker",
+      title: "Document Not Found",
+      description: "Secure DigiLocker document not available.",
       robots: {
         index: false,
         follow: false,
@@ -56,8 +57,8 @@ export async function generateMetadata({ params }) {
   }
 
   return {
-    title: `${document.title} | DigiLocker`,
-    description: document.description,
+    title: "Document",
+    description: "Private DigiLocker document stored in the authenticated vault.",
     robots: {
       index: false,
       follow: false,

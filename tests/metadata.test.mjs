@@ -118,6 +118,45 @@ test("Document Metadata & Revalidation Strategy (LU-2.23)", async (t) => {
     path.resolve("src/app/(vault)/documents/[id]/page.js"),
     "utf-8"
   );
+  const rootLayoutContent = fs.readFileSync(
+    path.resolve("src/app/layout.js"),
+    "utf-8"
+  );
+  const homePageContent = fs.readFileSync(
+    path.resolve("src/app/page.js"),
+    "utf-8"
+  );
+
+  await t.test("root layout configures global metadata with title template and Open Graph defaults", () => {
+    assert.match(
+      rootLayoutContent,
+      /title:\s*\{[\s\S]*default:[\s\S]*template:[\s\S]*\}/,
+      "root layout should define default title and template"
+    );
+    assert.match(
+      rootLayoutContent,
+      /metadataBase:\s*new\s+URL\(/,
+      "root layout should set metadataBase from the configured APP URL"
+    );
+    assert.match(
+      rootLayoutContent,
+      /openGraph:\s*\{[\s\S]*siteName:[\s\S]*type:\s*["']website["']/,
+      "root layout should include default Open Graph metadata"
+    );
+  });
+
+  await t.test("home page exposes public marketing metadata for indexable content", () => {
+    assert.match(
+      homePageContent,
+      /export\s+const\s+metadata\s*=\s*\{/,
+      "home page should export route metadata"
+    );
+    assert.match(
+      homePageContent,
+      /title:\s*["']DigiLocker["']/,
+      "home page should define a useful public title"
+    );
+  });
 
   await t.test("page.js contains revalidate export configured to 300 seconds", () => {
     assert.match(
