@@ -19,6 +19,7 @@
 
 # production
 /build
+/.mock-storage/
 
 # misc
 .DS_Store
