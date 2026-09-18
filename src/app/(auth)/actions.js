@@ -9,6 +9,7 @@ import {
   getSessionCookieName,
   getSessionCookieOptions,
 } from "../../lib/auth.js";
+import { setCookie, deleteCookie } from "../../lib/cookies.js";
 import { createTraceId, getTraceId, logger } from "../../lib/logger.js";
 import { signIn, signOut } from "../../auth.js";
 
@@ -18,8 +19,7 @@ function readFormValue(formData, name) {
 }
 
 async function startSession(user) {
-  const cookieStore = await cookies();
-  cookieStore.set(getSessionCookieName(), createSessionToken(user), getSessionCookieOptions());
+  await setCookie(getSessionCookieName(), createSessionToken(user), getSessionCookieOptions());
 }
 
 export async function signInWithGoogle() {
@@ -51,11 +51,7 @@ export async function login(formData) {
 
 export async function logout() {
   const traceId = getTraceId() || createTraceId();
-  const cookieStore = await cookies();
-  cookieStore.set(getSessionCookieName(), "", {
-    ...getSessionCookieOptions(),
-    maxAge: 0,
-  });
+  await deleteCookie(getSessionCookieName(), getSessionCookieOptions());
   try {
     await signOut({ redirect: false });
   } catch {

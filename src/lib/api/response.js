@@ -1,6 +1,11 @@
-export function successResponse(data = {}, options = {}) {
-  const normalizedOptions = typeof options === "number" ? { status: options } : options;
-  const { status = 200, message } = normalizedOptions;
+import { getTraceId } from "../logger.js";
+import { applySecurityHeaders } from "../headers.js";
+
+export function successResponse(data = {}, options = {}, customHeaders = {}) {
+  const normalizedOptions = typeof options === "number"
+    ? { status: options, headers: customHeaders }
+    : options;
+  const { status = 200, message, headers = {} } = normalizedOptions;
 
   if (status === 204) {
     return new Response(null, { status });
@@ -10,5 +15,9 @@ export function successResponse(data = {}, options = {}) {
   if (message) body.message = message;
   body.data = data;
 
-  return Response.json(body, { status });
+  const response = Response.json(body, { status, headers });
+  const traceId = getTraceId();
+  if (traceId) response.headers.set("x-trace-id", traceId);
+  applySecurityHeaders(response, { noCache: true });
+  return response;
 }

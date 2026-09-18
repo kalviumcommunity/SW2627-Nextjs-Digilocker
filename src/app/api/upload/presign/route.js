@@ -1,4 +1,5 @@
-import { cookies } from "next/headers.js";
+import { getCookieValue } from "../../../../lib/cookies.js";
+import { getRequestTraceId } from "../../../../lib/headers.js";
 import {
   presignUploadSchema,
   parseRequestBody,
@@ -31,8 +32,7 @@ export async function POST(request) {
         userId = user.id;
       }
     } else {
-      const cookieStore = await cookies();
-      const cookieUser = cookieStore?.get?.("demo-user")?.value;
+      const cookieUser = await getCookieValue("demo-user");
       if (cookieUser) {
         userId = cookieUser;
       }

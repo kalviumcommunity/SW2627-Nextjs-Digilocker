@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache.js";
-import { cookies } from "next/headers.js";
+import { getCookieValue } from "../../../../lib/cookies.js";
+import { getRequestTraceId } from "../../../../lib/headers.js";
 import {
   completeUploadSchema,
   API_ERROR_CODES,
@@ -23,7 +24,7 @@ import {
  * Revalidates vault paths and returns the created document.
  */
 export async function POST(request) {
-  const traceId = getTraceId() || createTraceId();
+  const traceId = (await getRequestTraceId(request)) || getTraceId() || createTraceId();
 
   return withTraceId(traceId, async () => {
     const parsed = await parseRequestBody(request, completeUploadSchema);
@@ -43,8 +44,7 @@ export async function POST(request) {
           userId = user.id;
         }
       } else {
-        const cookieStore = await cookies();
-        const cookieUser = cookieStore?.get?.("demo-user")?.value;
+        const cookieUser = await getCookieValue("demo-user");
         if (cookieUser) {
           userId = cookieUser;
         }

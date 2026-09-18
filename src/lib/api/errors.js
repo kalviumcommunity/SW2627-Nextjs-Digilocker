@@ -1,3 +1,6 @@
+import { getTraceId } from "../logger.js";
+import { applySecurityHeaders } from "../headers.js";
+
 export const API_ERROR_CODES = Object.freeze({
   VALIDATION_ERROR: "VALIDATION_ERROR",
   UNAUTHORIZED: "UNAUTHORIZED",
@@ -12,18 +15,36 @@ export const API_ERROR_CODES = Object.freeze({
   INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
 });
 
-export function errorResponse({
+export function errorResponse(input = {}, legacyStatus, legacyDetails = [], customHeaders = {}) {
+  const legacyCall = typeof input === "string";
+  const options = legacyCall
+    ? {
+        code: legacyStatus >= 400 && legacyStatus < 500
+          ? API_ERROR_CODES.VALIDATION_ERROR
+          : API_ERROR_CODES.INTERNAL_SERVER_ERROR,
+        message: input,
+        status: legacyStatus,
+        details: legacyDetails,
+        headers: customHeaders,
+      }
+    : input;
+  const {
   code = API_ERROR_CODES.INTERNAL_SERVER_ERROR,
   message = "An unexpected error occurred",
   status = 500,
   details,
-} = {}) {
+    headers = {},
+  } = options;
   const error = { code, message };
   if (details && Object.keys(details).length > 0) {
     error.details = details;
   }
 
-  return Response.json({ success: false, error }, { status });
+  const response = Response.json({ success: false, error }, { status, headers });
+  const traceId = getTraceId();
+  if (traceId) response.headers.set("x-trace-id", traceId);
+  applySecurityHeaders(response, { noCache: true });
+  return response;
 }
 
 export function formatValidationDetails(error) {
