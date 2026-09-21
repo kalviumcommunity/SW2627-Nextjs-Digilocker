@@ -76,7 +76,7 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function GET(_request, { params }) {
+export async function GET(request, { params }) {
   try {
     const key = getObjectKey(await params);
     const { dataPath, metadataPath } = getStoragePaths(key);
@@ -84,14 +84,32 @@ export async function GET(_request, { params }) {
       readFile(dataPath),
       readFile(metadataPath, "utf8").catch(() => "{}"),
     ]);
-    const contentType = JSON.parse(metadata).contentType || getContentType(key);
+
+    let requestedDisposition = "inline";
+    let requestedContentType = null;
+    try {
+      if (request?.url) {
+        const url = new URL(request.url);
+        requestedDisposition =
+          url.searchParams.get("disposition") ||
+          url.searchParams.get("response-content-disposition") ||
+          "inline";
+        requestedContentType =
+          url.searchParams.get("contentType") ||
+          url.searchParams.get("response-content-type");
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+
+    const contentType = requestedContentType || JSON.parse(metadata).contentType || getContentType(key);
 
     return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": contentType,
         "Content-Length": String(body.byteLength),
-        "Content-Disposition": "inline",
+        "Content-Disposition": requestedDisposition,
         "Cache-Control": "private, no-store",
       },
     });
