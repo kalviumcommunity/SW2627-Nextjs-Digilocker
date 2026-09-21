@@ -191,16 +191,23 @@ export async function getCurrentUser() {
     const nextAuthSession = await auth();
     if (nextAuthSession?.user?.email) {
       const email = normalizeEmail(nextAuthSession.user.email);
-      let user = usersByEmail.get(email);
-      if (!user) {
-        user = findOrCreateGoogleUser({
-          id: nextAuthSession.user.id,
-          email,
-          name: nextAuthSession.user.name,
-          image: nextAuthSession.user.image,
-        });
+
+      // Build user from session directly — do not depend on in-memory Map
+      // which is wiped on every server restart
+      const sessionUser = {
+        id: nextAuthSession.user.id || nextAuthSession.user.sub || email,
+        email,
+        name: nextAuthSession.user.name || email,
+        image: nextAuthSession.user.image || null,
+        role: nextAuthSession.user.role || "user",
+      };
+
+      // Also sync into memory map for other lookups
+      if (!usersByEmail.has(email)) {
+        usersByEmail.set(email, sessionUser);
       }
-      return user;
+
+      return sessionUser;
     }
   } catch {
     // Graceful fallback when outside NextAuth context or when NextAuth session is inactive

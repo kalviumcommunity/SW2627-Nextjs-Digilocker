@@ -97,18 +97,39 @@ export function ShareLinkSection({ documentId, shareLinks = [] }) {
 
       {shareLinks.length > 0 ? (
         <ul className="divide-y divide-black/10 dark:divide-white/10 text-xs">
-          {shareLinks.map((link) => (
-            <li
-              key={link.id}
-              className="py-2.5 flex items-center justify-between"
-            >
-              <div className="space-y-0.5">
-                <p className="font-mono font-medium">{link.token}</p>
-                <p className="text-foreground/60">Expires: {link.expiresAt}</p>
-              </div>
-              <RevokeShareButton documentId={documentId} linkId={link.id} />
-            </li>
-          ))}
+          {shareLinks.map((link) => {
+            const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/share/${link.token}`;
+            return (
+              <li
+                key={link.id}
+                className="py-2.5 flex items-center justify-between gap-2"
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/share/${link.token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono font-medium text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[180px] sm:max-w-xs"
+                      title={shareUrl}
+                    >
+                      /share/{link.token}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/share/${link.token}`)}
+                      className="shrink-0 text-foreground/40 hover:text-foreground transition-colors"
+                      title="Copy link"
+                    >
+                      📋
+                    </button>
+                  </div>
+                  <p className="text-foreground/60">Expires: {link.expiresAt}</p>
+                </div>
+                <RevokeShareButton documentId={documentId} linkId={link.id} />
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="text-xs text-foreground/50">No active share links.</p>

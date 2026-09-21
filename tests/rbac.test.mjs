@@ -19,7 +19,7 @@ const {
   verifySessionToken,
   ROLES,
 } = await import("../src/lib/auth.js");
-const { proxy } = await import("../src/proxy.js");
+const { proxy, resolveRequestAuthState } = await import("../src/proxy.js");
 const { updateUserRoleAction, purgeAuditLogsAction } = await import("../src/app/admin/actions.js");
 const { getDocuments, createDocument } = await import("../src/lib/documents.js");
 
@@ -202,6 +202,20 @@ test("Route-Level Authorization via Proxy (Next.js 16)", async (t) => {
     const res = await proxy(req);
 
     assert.equal(res.status, 200, "Admin request should be allowed through to destination");
+  });
+
+  await t.test("Google OAuth session is accepted for protected vault routes", async () => {
+    const req = createMockRequest("/dashboard");
+    const authState = await resolveRequestAuthState(req, async () => ({
+      user: {
+        email: "google-user@example.com",
+        name: "Google User",
+        role: "user",
+      },
+    }));
+
+    assert.equal(authState.isAuthenticated, true, "Google sessions should count as authenticated");
+    assert.equal(authState.user.email, "google-user@example.com");
   });
 
   await t.test("non-admin routes are unaffected by proxy", async () => {
