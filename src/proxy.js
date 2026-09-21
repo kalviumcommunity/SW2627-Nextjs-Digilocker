@@ -23,6 +23,58 @@ function enhanceResponse(response, traceId, isPrivate = false) {
   return response;
 }
 
+export async function resolveRequestAuthState(request, authFn) {
+  let nextAuthSession = null;
+
+  if (typeof authFn === "function") {
+    try {
+      nextAuthSession = await authFn();
+    } catch {
+      nextAuthSession = null;
+    }
+  } else {
+    try {
+      const { auth } = await import("./auth.js");
+      nextAuthSession = await auth();
+    } catch {
+      nextAuthSession = null;
+    }
+  }
+
+  if (nextAuthSession?.user) {
+    const user = nextAuthSession.user;
+    return {
+      isAuthenticated: true,
+      user: {
+        ...user,
+        id: user.id || user.sub || null,
+        role: user.role || "user",
+      },
+    };
+  }
+
+  const rawCookie = request.cookies?.get?.("digilocker-session");
+  const cookieValue = typeof rawCookie === "object" ? rawCookie?.value : rawCookie;
+  if (!cookieValue) {
+    return { isAuthenticated: false, user: null };
+  }
+
+  const verified = verifySessionToken(cookieValue);
+  if (!verified) {
+    return { isAuthenticated: false, user: null };
+  }
+
+  return {
+    isAuthenticated: true,
+    user: {
+      id: verified.userId,
+      email: verified.email,
+      name: verified.name,
+      role: verified.role || "user",
+    },
+  };
+}
+
 export async function proxy(request) {
   const url = request.nextUrl || new URL(request.url);
   const pathname = url.pathname;
@@ -31,52 +83,20 @@ export async function proxy(request) {
   const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
   const isVaultRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/documents");
   const isPrivate = isVaultRoute || pathname.startsWith("/admin") || pathname.startsWith("/api/");
+  const authState = await resolveRequestAuthState(request);
 
-  if (authEnabled && isVaultRoute) {
-    const sessionCookie = request.cookies?.get?.("digilocker-session");
-    if (!sessionCookie?.value) {
-      return enhanceResponse(NextResponse.redirect(new URL("/login", request.url)), traceId, isPrivate);
-    }
+  if (authEnabled && isVaultRoute && !authState.isAuthenticated) {
+    return enhanceResponse(NextResponse.redirect(new URL("/login", request.url)), traceId, isPrivate);
   }
 
   if (pathname.startsWith("/admin")) {
-    let isAuthenticated = false;
-    let userRole = null;
-
-    // 1. Check NextAuth (Auth.js) session
-    try {
-      const { auth } = await import("./auth.js");
-      const session = await auth();
-      if (session?.user) {
-        isAuthenticated = true;
-        userRole = session.user.role || "user";
-      }
-    } catch {
-      // Graceful fallback when outside NextAuth request context
-    }
-
-    // 2. Fallback to custom digilocker-session cookie
-    if (!isAuthenticated) {
-      const rawCookie = request.cookies?.get?.("digilocker-session");
-      const cookieValue = typeof rawCookie === "object" ? rawCookie?.value : rawCookie;
-      if (cookieValue) {
-        const verified = verifySessionToken(cookieValue);
-        if (verified) {
-          isAuthenticated = true;
-          userRole = verified.role || "user";
-        }
-      }
-    }
-
-    // 3. Unauthenticated -> redirect to /login
-    if (!isAuthenticated) {
+    if (!authState.isAuthenticated) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return enhanceResponse(NextResponse.redirect(loginUrl), traceId, isPrivate);
     }
 
-    // 4. Authenticated but unauthorized -> redirect to /forbidden
-    if (userRole !== "admin") {
+    if (authState.user.role !== "admin") {
       return enhanceResponse(NextResponse.redirect(new URL("/forbidden", request.url)), traceId, isPrivate);
     }
   }

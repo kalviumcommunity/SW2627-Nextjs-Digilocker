@@ -192,7 +192,7 @@ export async function getDocuments() {
       orderBy: { createdAt: "desc" },
     });
 
-    const mappedDb = (dbDocs || []).map((doc) => ({
+    return (dbDocs || []).map((doc) => ({
       id: doc.id,
       title: doc.title,
       description: doc.description || "",
@@ -208,18 +208,9 @@ export async function getDocuments() {
       updatedAt: doc.updatedAt,
       userId: doc.userId,
     }));
-
-    const merged = [...mappedDb];
-    for (const doc of documents) {
-      if (!merged.some((d) => d.id === doc.id)) {
-        merged.push(doc);
-      }
-    }
-
-    return merged;
   } catch (error) {
-    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), err: error }, "Prisma query failed, falling back to mock data");
-    return documents;
+    logger.warn({ action: "data.fetch_fallback", traceId: getTraceId() || createTraceId(), err: error }, "Prisma query failed, returning empty list");
+    return [];
   }
 }
 

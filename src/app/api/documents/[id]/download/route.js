@@ -88,8 +88,12 @@ export async function GET(request, { params }) {
         if (process.env.NEXT_PUBLIC_AUTH_ENABLED === "true") {
           const currentUser = await getCurrentUser();
           if (currentUser?.id) {
-            // Document owner or admin
-            if (currentUser.id === document.userId || currentUser.role === "ADMIN") {
+            // Allow: document owner, admin, or document has no userId (uploaded before auth was enabled)
+            if (
+              !document.userId ||
+              currentUser.id === document.userId ||
+              currentUser.role === "ADMIN"
+            ) {
               authorized = true;
             }
           }
