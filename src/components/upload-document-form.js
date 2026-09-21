@@ -241,8 +241,12 @@ export function UploadDocumentForm() {
       router.refresh();
       resetFormState();
     } catch (err) {
+      const fallbackMessage = err instanceof TypeError && err.message === "Failed to fetch"
+        ? "Unable to upload the document. Please try again."
+        : err?.message || "Unable to upload the document. Please try again.";
+
       setUploadStage("error");
-      setDirectUploadError(err.message || "An unexpected error occurred during upload.");
+      setDirectUploadError(fallbackMessage);
       setIsDirectUploading(false);
     }
   };

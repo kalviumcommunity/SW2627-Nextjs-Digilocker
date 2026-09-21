@@ -77,6 +77,63 @@ test("LU-2.55 Signed Cloud Storage URLs for Direct Upload and Download", async (
     assert.match(defaultInline, /^inline;/);
   });
 
+  await t.test("Local development defaults to the mock provider when no explicit storage provider is configured", () => {
+    const previousProvider = process.env.STORAGE_PROVIDER;
+    const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousBucket = process.env.NEXT_PUBLIC_STORAGE_BUCKET;
+    const previousAccessKey = process.env.STORAGE_ACCESS_KEY_ID;
+    const previousSecret = process.env.STORAGE_SECRET_ACCESS_KEY;
+
+    try {
+      delete process.env.STORAGE_PROVIDER;
+      process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
+      process.env.NODE_ENV = "development";
+      process.env.NEXT_PUBLIC_STORAGE_BUCKET = "digilocker-vault-dev";
+      process.env.STORAGE_ACCESS_KEY_ID = "test-access-key";
+      process.env.STORAGE_SECRET_ACCESS_KEY = "test-secret-key";
+
+      const provider = getStorageProvider();
+      assert.strictEqual(provider, STORAGE_PROVIDERS.MOCK, "Local dev must default to the mock storage provider");
+      const uploadUrl = generateSignedUploadUrl({
+        objectKey: "uploads/demo-user/dev-test.pdf",
+        contentType: "application/pdf",
+      });
+      assert.match(uploadUrl.uploadUrl, /\/api\/upload\/mock-s3\//, "Mock upload URL must stay on the local mock storage route");
+    } finally {
+      if (previousProvider === undefined) {
+        delete process.env.STORAGE_PROVIDER;
+      } else {
+        process.env.STORAGE_PROVIDER = previousProvider;
+      }
+      if (previousAppUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_URL;
+      } else {
+        process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
+      }
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+      if (previousBucket === undefined) {
+        delete process.env.NEXT_PUBLIC_STORAGE_BUCKET;
+      } else {
+        process.env.NEXT_PUBLIC_STORAGE_BUCKET = previousBucket;
+      }
+      if (previousAccessKey === undefined) {
+        delete process.env.STORAGE_ACCESS_KEY_ID;
+      } else {
+        process.env.STORAGE_ACCESS_KEY_ID = previousAccessKey;
+      }
+      if (previousSecret === undefined) {
+        delete process.env.STORAGE_SECRET_ACCESS_KEY;
+      } else {
+        process.env.STORAGE_SECRET_ACCESS_KEY = previousSecret;
+      }
+    }
+  });
+
   await t.test("Mock Signed URLs: generates and cryptographically verifies temporary signed URLs", () => {
     const key = "uploads/demo-user/test-file.pdf";
     const signedUrl = generateMockSignedUrl({

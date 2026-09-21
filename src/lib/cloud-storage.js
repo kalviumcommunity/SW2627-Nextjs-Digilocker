@@ -70,6 +70,21 @@ export function getStorageProvider() {
     return explicitProvider;
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isLocalDevelopment =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_APP_ENV === "development" ||
+    appUrl.includes("localhost") ||
+    appUrl.includes("127.0.0.1");
+
+  // Local development should always default to the mock provider unless the app
+  // explicitly opts into a real cloud backend via STORAGE_PROVIDER.
+  if (isLocalDevelopment) {
+    return STORAGE_PROVIDERS.MOCK;
+  }
+
+  const bucket = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "";
+
   // Auto-detect GCP
   const hasGcp = Boolean(
     process.env.GCP_PROJECT_ID ||
@@ -82,7 +97,6 @@ export function getStorageProvider() {
   }
 
   // Auto-detect S3 (when credentials exist and bucket is not "local")
-  const bucket = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "";
   const hasS3 = Boolean(
     process.env.STORAGE_ACCESS_KEY_ID &&
     process.env.STORAGE_SECRET_ACCESS_KEY &&
