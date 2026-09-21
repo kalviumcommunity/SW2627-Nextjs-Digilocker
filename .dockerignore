@@ -11,3 +11,4 @@ coverage
 *.log
 prisma/prisma/dev.db
 tsconfig.tsbuildinfo
+tests

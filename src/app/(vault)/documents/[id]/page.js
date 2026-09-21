@@ -140,7 +140,7 @@ export default async function DocumentPage({ params }) {
           {document.fileKey && (
             <div className="flex gap-3">
               <a
-                href={document.fileUrl?.startsWith("http") ? document.fileUrl : `/api/upload/mock-s3/${document.fileKey}`}
+                href={`/api/documents/${document.id}/download?action=view`}
                 target="_blank"
                 rel="noreferrer"
                 className="rounded-md bg-foreground px-4 py-2 font-medium text-background hover:opacity-90 transition-opacity"
@@ -148,7 +148,7 @@ export default async function DocumentPage({ params }) {
                 View Document
               </a>
               <a
-                href={document.fileUrl?.startsWith("http") ? document.fileUrl : `/api/upload/mock-s3/${document.fileKey}`}
+                href={`/api/documents/${document.id}/download?action=download`}
                 download
                 className="rounded-md border border-foreground/20 px-4 py-2 font-medium hover:bg-foreground/5 transition-colors"
               >

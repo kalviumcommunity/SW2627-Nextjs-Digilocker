@@ -78,7 +78,12 @@ export const env = {
   API_TIMEOUT: parseNumber(process.env.API_TIMEOUT, "API_TIMEOUT", 30000),
   API_LOG_ENABLED: parseBoolean(process.env.API_LOG_ENABLED, false),
 
-  // Cloud Storage (S3)
+  // Cloud Storage (S3 & Google Cloud Storage)
+  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || "",
+  GCP_PROJECT_ID: process.env.GCP_PROJECT_ID || "",
+  GCP_STORAGE_BUCKET: process.env.GCP_STORAGE_BUCKET || "",
+  GCP_CLIENT_EMAIL: process.env.GCP_CLIENT_EMAIL || "",
+  GCP_PRIVATE_KEY: process.env.GCP_PRIVATE_KEY || "",
   NEXT_PUBLIC_STORAGE_BUCKET: validateRequired(
     process.env.NEXT_PUBLIC_STORAGE_BUCKET,
     "NEXT_PUBLIC_STORAGE_BUCKET",
