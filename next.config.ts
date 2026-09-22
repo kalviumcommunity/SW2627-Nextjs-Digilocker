@@ -61,6 +61,15 @@ const noCacheHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/dashboard",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
