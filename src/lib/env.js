@@ -1,127 +1,240 @@
 /**
- * Environment Variable Configuration
- * 
- * Provides type-safe access to environment variables with validation.
- * Validates required variables at runtime and provides helpful error messages.
- * 
- * Usage:
- *   import { env } from '@/src/lib/env'
- *   const appUrl = env.NEXT_PUBLIC_APP_URL
+ * Centralized environment configuration.
+ *
+ * Important:
+ * - Optional variables receive safe defaults.
+ * - Missing variables DO NOT crash `next build`.
+ * - Production configuration can be checked explicitly with
+ *   validateEnvironment().
  */
 
 /**
- * Validate that a required environment variable exists
- */
-function validateRequired(value, variableName, isPublic = false) {
-  if (!value) {
-    const scope = isPublic ? "public" : "server-only";
-    throw new Error(
-      `Missing required environment variable: ${variableName} (${scope})\n` +
-      `Please check your .env.local or .env.production file.`
-    );
-  }
-  return value;
-}
-
-/**
- * Parse a numeric environment variable
+ * Parse a numeric environment variable.
  */
 function parseNumber(value, variableName, defaultValue) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null ||
+    String(value).trim() === ""
+  ) {
     return defaultValue;
   }
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed)) {
-    throw new Error(
-      `Invalid number for ${variableName}: "${value}"`
+
+  const parsed = Number.parseInt(String(value), 10);
+
+  if (Number.isNaN(parsed)) {
+    console.warn(
+      `[env] Invalid number for ${variableName}: "${value}". Using default: ${defaultValue}`
     );
+
+    return defaultValue;
   }
+
   return parsed;
 }
 
 /**
- * Parse a boolean environment variable
+ * Parse a boolean environment variable.
  */
 function parseBoolean(value, defaultValue = false) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null ||
+    String(value).trim() === ""
+  ) {
     return defaultValue;
   }
-  return value.toLowerCase() === "true" || value === "1";
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (normalized === "true" || normalized === "1") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0") {
+    return false;
+  }
+
+  return defaultValue;
 }
 
 /**
- * Parse a comma-separated list
+ * Parse comma-separated values.
  */
 function parseList(value, defaultValue = []) {
-  if (!value) {
+  if (!value || String(value).trim() === "") {
     return defaultValue;
   }
-  return value.split(",").map(item => item.trim()).filter(Boolean);
+
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 /**
- * Environment variables with validation
+ * Resolve application URL.
  */
+function getAppUrl() {
+  // Explicit value should always win
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+
+  // Vercel automatically exposes VERCEL_URL on deployments
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return "http://localhost:3000";
+}
+
 export const env = {
-  // Application Environment
+  // -----------------------------------------------------
+  // Application
+  // -----------------------------------------------------
+
   NODE_ENV: process.env.NODE_ENV || "development",
-  NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV || "development",
-  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || "DigiLocker Vault",
-  NEXT_PUBLIC_APP_URL: 
-    process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : "http://localhost:3000"),
 
-  // API Configuration
-  NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || "/api",
-  API_TIMEOUT: parseNumber(process.env.API_TIMEOUT, "API_TIMEOUT", 30000),
-  API_LOG_ENABLED: parseBoolean(process.env.API_LOG_ENABLED, false),
+  NEXT_PUBLIC_APP_ENV:
+    process.env.NEXT_PUBLIC_APP_ENV || "development",
 
-  // Cloud Storage (S3 & Google Cloud Storage)
-  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || "",
-  GCP_PROJECT_ID: process.env.GCP_PROJECT_ID || "",
-  GCP_STORAGE_BUCKET: process.env.GCP_STORAGE_BUCKET || "",
-  GCP_CLIENT_EMAIL: process.env.GCP_CLIENT_EMAIL || "",
-  GCP_PRIVATE_KEY: process.env.GCP_PRIVATE_KEY || "",
-  NEXT_PUBLIC_STORAGE_BUCKET: process.env.NEXT_PUBLIC_STORAGE_BUCKET || "digilocker-vault-production",
-  NEXT_PUBLIC_STORAGE_REGION: process.env.NEXT_PUBLIC_STORAGE_REGION || "us-east-1",
-  NEXT_PUBLIC_STORAGE_ENDPOINT: process.env.NEXT_PUBLIC_STORAGE_ENDPOINT || "",
-  STORAGE_ACCESS_KEY_ID: process.env.STORAGE_ACCESS_KEY_ID || "dummy-key",
-  STORAGE_SECRET_ACCESS_KEY: process.env.STORAGE_SECRET_ACCESS_KEY || "dummy-secret",
+  NEXT_PUBLIC_APP_NAME:
+    process.env.NEXT_PUBLIC_APP_NAME || "DigiLocker Vault",
+
+  NEXT_PUBLIC_APP_URL: getAppUrl(),
+
+  // -----------------------------------------------------
+  // API
+  // -----------------------------------------------------
+
+  NEXT_PUBLIC_API_BASE_URL:
+    process.env.NEXT_PUBLIC_API_BASE_URL || "/api",
+
+  API_TIMEOUT: parseNumber(
+    process.env.API_TIMEOUT,
+    "API_TIMEOUT",
+    30000
+  ),
+
+  API_LOG_ENABLED: parseBoolean(
+    process.env.API_LOG_ENABLED,
+    false
+  ),
+
+  // -----------------------------------------------------
+  // Storage
+  // -----------------------------------------------------
+
+  STORAGE_PROVIDER:
+    process.env.STORAGE_PROVIDER || "mock",
+
+  GCP_PROJECT_ID:
+    process.env.GCP_PROJECT_ID || "",
+
+  GCP_STORAGE_BUCKET:
+    process.env.GCP_STORAGE_BUCKET || "",
+
+  GCP_CLIENT_EMAIL:
+    process.env.GCP_CLIENT_EMAIL || "",
+
+  GCP_PRIVATE_KEY:
+    process.env.GCP_PRIVATE_KEY
+      ? process.env.GCP_PRIVATE_KEY.replace(/\\n/g, "\n")
+      : "",
+
+  NEXT_PUBLIC_STORAGE_BUCKET:
+    process.env.NEXT_PUBLIC_STORAGE_BUCKET || "",
+
+  NEXT_PUBLIC_STORAGE_REGION:
+    process.env.NEXT_PUBLIC_STORAGE_REGION || "us-east-1",
+
+  NEXT_PUBLIC_STORAGE_ENDPOINT:
+    process.env.NEXT_PUBLIC_STORAGE_ENDPOINT || "",
+
+  STORAGE_ACCESS_KEY_ID:
+    process.env.STORAGE_ACCESS_KEY_ID || "",
+
+  STORAGE_SECRET_ACCESS_KEY:
+    process.env.STORAGE_SECRET_ACCESS_KEY || "",
+
   PRESIGNED_URL_EXPIRY_SECONDS: parseNumber(
     process.env.PRESIGNED_URL_EXPIRY_SECONDS,
     "PRESIGNED_URL_EXPIRY_SECONDS",
     900
   ),
-  STORAGE_ENABLE_ENCRYPTION: parseBoolean(process.env.STORAGE_ENABLE_ENCRYPTION, false),
-  STORAGE_KMS_KEY_ID: process.env.STORAGE_KMS_KEY_ID || "",
 
+  STORAGE_ENABLE_ENCRYPTION: parseBoolean(
+    process.env.STORAGE_ENABLE_ENCRYPTION,
+    false
+  ),
+
+  STORAGE_KMS_KEY_ID:
+    process.env.STORAGE_KMS_KEY_ID || "",
+
+  // -----------------------------------------------------
   // Database
-  DATABASE_URL: process.env.DATABASE_URL || "file:./prisma/dev.db",
-  DATABASE_POOL_SIZE: parseNumber(process.env.DATABASE_POOL_SIZE, "DATABASE_POOL_SIZE", 10),
-  DATABASE_LOG_ENABLED: parseBoolean(process.env.DATABASE_LOG_ENABLED, false),
+  // -----------------------------------------------------
 
+  DATABASE_URL:
+    process.env.DATABASE_URL || "",
+
+  DATABASE_POOL_SIZE: parseNumber(
+    process.env.DATABASE_POOL_SIZE,
+    "DATABASE_POOL_SIZE",
+    10
+  ),
+
+  DATABASE_LOG_ENABLED: parseBoolean(
+    process.env.DATABASE_LOG_ENABLED,
+    false
+  ),
+
+  // -----------------------------------------------------
   // Authentication
-  NEXT_PUBLIC_AUTH_ENABLED: parseBoolean(process.env.NEXT_PUBLIC_AUTH_ENABLED, false),
-  AUTH_SECRET: process.env.AUTH_SECRET || "default-secret-for-build-purposes-only-32-chars",
-  AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID || "",
-  AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET || "",
+  // -----------------------------------------------------
+
+  NEXT_PUBLIC_AUTH_ENABLED: parseBoolean(
+    process.env.NEXT_PUBLIC_AUTH_ENABLED,
+    false
+  ),
+
+  AUTH_SECRET:
+    process.env.AUTH_SECRET || "",
+
+  AUTH_GOOGLE_ID:
+    process.env.AUTH_GOOGLE_ID || "",
+
+  AUTH_GOOGLE_SECRET:
+    process.env.AUTH_GOOGLE_SECRET || "",
+
   AUTH_SESSION_EXPIRY_SECONDS: parseNumber(
     process.env.AUTH_SESSION_EXPIRY_SECONDS,
     "AUTH_SESSION_EXPIRY_SECONDS",
     86400
   ),
+
   CORS_ALLOWED_ORIGINS: parseList(
     process.env.CORS_ALLOWED_ORIGINS,
     ["http://localhost:3000"]
   ),
 
+  // -----------------------------------------------------
   // File Upload
-  MAX_FILE_SIZE_MB: parseNumber(process.env.MAX_FILE_SIZE_MB, "MAX_FILE_SIZE_MB", 10),
+  // -----------------------------------------------------
+
+  MAX_FILE_SIZE_MB: parseNumber(
+    process.env.MAX_FILE_SIZE_MB,
+    "MAX_FILE_SIZE_MB",
+    10
+  ),
+
   MAX_STORAGE_PER_USER_MB: parseNumber(
     process.env.MAX_STORAGE_PER_USER_MB,
     "MAX_STORAGE_PER_USER_MB",
     100
   ),
+
   ALLOWED_FILE_TYPES: parseList(
     process.env.ALLOWED_FILE_TYPES,
     [
@@ -134,137 +247,203 @@ export const env = {
       "application/json",
     ]
   ),
-  VIRUS_SCAN_ENABLED: parseBoolean(process.env.VIRUS_SCAN_ENABLED, false),
-  VIRUS_SCAN_URL: process.env.VIRUS_SCAN_URL || "",
 
-  // Sharing & Links
-  NEXT_PUBLIC_ENABLE_SHARE_LINKS: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_SHARE_LINKS, true),
+  VIRUS_SCAN_ENABLED: parseBoolean(
+    process.env.VIRUS_SCAN_ENABLED,
+    false
+  ),
+
+  VIRUS_SCAN_URL:
+    process.env.VIRUS_SCAN_URL || "",
+
+  // -----------------------------------------------------
+  // Sharing
+  // -----------------------------------------------------
+
+  NEXT_PUBLIC_ENABLE_SHARE_LINKS: parseBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_SHARE_LINKS,
+    true
+  ),
+
   NEXT_PUBLIC_DEFAULT_EXPIRY_MINUTES: parseNumber(
     process.env.NEXT_PUBLIC_DEFAULT_EXPIRY_MINUTES,
     "NEXT_PUBLIC_DEFAULT_EXPIRY_MINUTES",
     60
   ),
+
   MAX_SHARE_LINK_EXPIRY_MINUTES: parseNumber(
     process.env.MAX_SHARE_LINK_EXPIRY_MINUTES,
     "MAX_SHARE_LINK_EXPIRY_MINUTES",
     43200
   ),
-  NEXT_PUBLIC_ENABLE_SHARE_PIN: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_SHARE_PIN, false),
+
+  NEXT_PUBLIC_ENABLE_SHARE_PIN: parseBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_SHARE_PIN,
+    false
+  ),
+
   NEXT_PUBLIC_ENABLE_SHARE_VIEW_LIMITS: parseBoolean(
     process.env.NEXT_PUBLIC_ENABLE_SHARE_VIEW_LIMITS,
     false
   ),
 
-  // Security & Compliance
-  CSP_ENABLED: parseBoolean(process.env.CSP_ENABLED, true),
-  CORS_ENABLED: parseBoolean(process.env.CORS_ENABLED, true),
-  RATE_LIMIT_ENABLED: parseBoolean(process.env.RATE_LIMIT_ENABLED, false),
+  // -----------------------------------------------------
+  // Security
+  // -----------------------------------------------------
+
+  CSP_ENABLED: parseBoolean(
+    process.env.CSP_ENABLED,
+    true
+  ),
+
+  CORS_ENABLED: parseBoolean(
+    process.env.CORS_ENABLED,
+    true
+  ),
+
+  RATE_LIMIT_ENABLED: parseBoolean(
+    process.env.RATE_LIMIT_ENABLED,
+    false
+  ),
+
   RATE_LIMIT_WINDOW_SECONDS: parseNumber(
     process.env.RATE_LIMIT_WINDOW_SECONDS,
     "RATE_LIMIT_WINDOW_SECONDS",
     60
   ),
+
   RATE_LIMIT_MAX_REQUESTS: parseNumber(
     process.env.RATE_LIMIT_MAX_REQUESTS,
     "RATE_LIMIT_MAX_REQUESTS",
     100
   ),
-  REQUEST_LOG_ENABLED: parseBoolean(process.env.REQUEST_LOG_ENABLED, false),
 
-  // Monitoring & Logging
-  LOG_LEVEL: process.env.LOG_LEVEL || "info",
-  ERROR_REPORTING_ENABLED: parseBoolean(process.env.ERROR_REPORTING_ENABLED, false),
-  ERROR_REPORTING_DSN: process.env.ERROR_REPORTING_DSN || "",
-  ANALYTICS_ENABLED: parseBoolean(process.env.ANALYTICS_ENABLED, false),
-  ANALYTICS_TOKEN: process.env.ANALYTICS_TOKEN || "",
+  REQUEST_LOG_ENABLED: parseBoolean(
+    process.env.REQUEST_LOG_ENABLED,
+    false
+  ),
 
-  // Development Tools
-  NEXT_PUBLIC_STRICT_MODE: parseBoolean(process.env.NEXT_PUBLIC_STRICT_MODE, true),
-  DEBUG: parseBoolean(process.env.DEBUG, false),
-  MOCK_API_ENABLED: parseBoolean(process.env.MOCK_API_ENABLED, false),
+  // -----------------------------------------------------
+  // Logging / Monitoring
+  // -----------------------------------------------------
 
-  // Derived values (computed from other env vars)
-  isProduction: process.env.NODE_ENV === "production",
-  isDevelopment: process.env.NODE_ENV === "development",
-  isStaging: process.env.NODE_ENV === "staging",
+  LOG_LEVEL:
+    process.env.LOG_LEVEL || "info",
+
+  ERROR_REPORTING_ENABLED: parseBoolean(
+    process.env.ERROR_REPORTING_ENABLED,
+    false
+  ),
+
+  ERROR_REPORTING_DSN:
+    process.env.ERROR_REPORTING_DSN || "",
+
+  ANALYTICS_ENABLED: parseBoolean(
+    process.env.ANALYTICS_ENABLED,
+    false
+  ),
+
+  ANALYTICS_TOKEN:
+    process.env.ANALYTICS_TOKEN || "",
+
+  // -----------------------------------------------------
+  // Development
+  // -----------------------------------------------------
+
+  NEXT_PUBLIC_STRICT_MODE: parseBoolean(
+    process.env.NEXT_PUBLIC_STRICT_MODE,
+    true
+  ),
+
+  DEBUG: parseBoolean(
+    process.env.DEBUG,
+    false
+  ),
+
+  MOCK_API_ENABLED: parseBoolean(
+    process.env.MOCK_API_ENABLED,
+    false
+  ),
+
+  // -----------------------------------------------------
+  // Helpers
+  // -----------------------------------------------------
+
+  isProduction:
+    process.env.NODE_ENV === "production",
+
+  isDevelopment:
+    process.env.NODE_ENV !== "production",
 
   /**
-   * Returns true if all required environment variables are set
-   * Useful for startup validation
-   */
-  isConfigured() {
-    try {
-      // Check required public variables
-      if (!this.NEXT_PUBLIC_APP_URL) return false;
-      if (!this.NEXT_PUBLIC_STORAGE_BUCKET) return false;
-
-      // Check required server variables if not in development
-      if (this.isProduction && !process.env.NEXT_PHASE) {
-        if (!this.AUTH_SECRET) return false;
-        if (!this.DATABASE_URL) return false;
-      }
-
-      return true;
-    } catch (error) {
-      return false;
-    }
-  },
-
-  /**
-   * Returns validation errors for missing or invalid variables
-   * Useful for debugging configuration issues
+   * Check whether important configuration exists.
+   * This DOES NOT execute automatically during next build.
    */
   validate() {
     const errors = [];
 
-    // Public variables (required)
-    if (!this.NEXT_PUBLIC_APP_URL) {
-      errors.push("Missing: NEXT_PUBLIC_APP_URL");
-    }
-    if (!this.NEXT_PUBLIC_STORAGE_BUCKET) {
-      errors.push("Missing: NEXT_PUBLIC_STORAGE_BUCKET");
+    if (!this.DATABASE_URL) {
+      errors.push("Missing DATABASE_URL");
     }
 
-    // Production variables
-    if (this.isProduction && !process.env.NEXT_PHASE) {
-      if (!this.AUTH_SECRET) {
-        errors.push("Missing: AUTH_SECRET (required in production)");
-      }
-      if (!this.DATABASE_URL) {
-        errors.push("Missing: DATABASE_URL (required in production)");
-      }
-      if (!this.STORAGE_ACCESS_KEY_ID) {
-        errors.push("Missing: STORAGE_ACCESS_KEY_ID (required in production)");
-      }
-      if (!this.STORAGE_SECRET_ACCESS_KEY) {
-        errors.push("Missing: STORAGE_SECRET_ACCESS_KEY (required in production)");
-      }
+    if (
+      this.NEXT_PUBLIC_AUTH_ENABLED &&
+      !this.AUTH_SECRET
+    ) {
+      errors.push(
+        "Missing AUTH_SECRET while authentication is enabled"
+      );
     }
 
-    // Validate numeric values
-    try {
-      parseNumber(process.env.MAX_FILE_SIZE_MB, "MAX_FILE_SIZE_MB", 10);
-    } catch (e) {
-      errors.push(e.message);
+    if (
+      this.STORAGE_PROVIDER === "gcp"
+    ) {
+      if (!this.GCP_PROJECT_ID) {
+        errors.push("Missing GCP_PROJECT_ID");
+      }
+
+      if (!this.GCP_STORAGE_BUCKET) {
+        errors.push("Missing GCP_STORAGE_BUCKET");
+      }
+
+      if (!this.GCP_CLIENT_EMAIL) {
+        errors.push("Missing GCP_CLIENT_EMAIL");
+      }
+
+      if (!this.GCP_PRIVATE_KEY) {
+        errors.push("Missing GCP_PRIVATE_KEY");
+      }
     }
 
     return errors;
   },
+
+  isConfigured() {
+    return this.validate().length === 0;
+  },
 };
 
 /**
- * Validate environment at startup (call in entry point if needed)
+ * Call this explicitly at runtime if strict validation is needed.
+ *
+ * Do NOT automatically execute it when this module is imported,
+ * because Next.js imports route modules while running `next build`.
  */
-import { logger } from "./logger.js";
-
 export function validateEnvironment() {
   const errors = env.validate();
+
   if (errors.length > 0) {
-    logger.error({ action: "config.validate", errors }, "Environment validation failed");
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Environment validation failed. See logs for details.");
-    }
-  } else {
-    logger.info({ action: "config.validate" }, "Environment validated successfully");
+    console.error(
+      "[env] Environment configuration errors:",
+      errors
+    );
+
+    return false;
   }
+
+  console.log(
+    "[env] Environment configuration validated"
+  );
+
+  return true;
 }
